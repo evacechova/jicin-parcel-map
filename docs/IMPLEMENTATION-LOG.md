@@ -41,3 +41,13 @@
 - Na explicitní pokyn opraven globální Git e-mail a nastaven repository-local
   GitHub noreply e-mail; jméno nezměněno. PHP krok `fddc0ef` pushnut na main.
 - Phase 01 dokončena. Bez změny architektury; Phase 02 nezahájena.
+
+## Phase 01 — Discovery documentation cleanup
+
+- Původní lokální discovery poznámky přesunuty do `docs/DISCOVERY.md` a nově
+  zařazeny do verzování. Zdroj byl ignorovaný a nesledovaný, proto nebylo možné
+  použít `git mv` ani zaznamenat rename vůči předchozímu commitu.
+- Upraven pouze úvod vymezující historickou roli a relativní odkazy v něm;
+  obsah za úvodním oddělovačem zachován beze změny. README odkazuje na archiv.
+- Ověřena shoda historického obsahu, místní Markdown odkazy, absence referencí
+  na původní název a diff. Aplikační kód nezměněn; Phase 02 nezahájena.

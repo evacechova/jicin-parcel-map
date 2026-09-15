@@ -85,3 +85,6 @@ curl --fail http://127.0.0.1:8000/api
 
 Schválený plán je v [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md).
 Skutečný postup zachycuje [implementation log](docs/IMPLEMENTATION-LOG.md).
+
+Historii uzavřené discovery fáze uchovává [docs/DISCOVERY.md](docs/DISCOVERY.md).
+Jde o historický záznam; finální architekturu a rozhodnutí určují příslušné dokumenty v `docs/`.
