@@ -18,3 +18,26 @@
   a `/.env` = 404, POST `/api` = 405. Ověřeno načtení `.env`, výchozí hodnota
   bez `.env` i přednost existující proměnné prostředí.
 - Po dohodě je problém Node 25 mimo scope assignmentu a neblokuje projekt.
+
+## Phase 01 — Vite foundation (2026-09-15)
+
+- Přidán Vite 8.3.0, vanilla JS/CSS/HTML, dev `/api` proxy na PHP,
+  oddělený frontend root a build do ignorovaného `dist/`.
+- Frontend zobrazí úspěch/chybu spojení s foundation odpovědí. Žádná mapa,
+  doménové API, DB, import ani benchmark nepřidány. Leaflet patří do Phase 05.
+- README doplněno o spuštění obou serverů, build a roli hlavních souborů.
+  Node target 24.x je v manifestu a npm jej vynucuje přes `engine-strict`.
+- Verification pod Node 24.20.0 / npm 11.19.0: instalace Vite, `npm ci`,
+  `npm run build`, syntaxe JS; dev server i build preview spuštěny.
+  HTTP kontrola obou: HTML a odkazované assety = 200, proxy `/api` = 200
+  se správným JSON, `/api/missing` = 404. Soukromé cesty neposkytují obsah
+  souborů (Vite může vrátit HTML fallback). npm audit při instalaci: 0 nálezů.
+- Composer instalace z lockfilu, strict validace a PHP lint prošly. Sandbox
+  omezuje síť/localhost; síťové instalace a serverové kontroly vyžadovaly
+  povolené spuštění mimo sandbox. Při opakované Composer instalaci v sandboxu
+  kontrola vzdálených filtrů nebyla dostupná; existující lock se nainstaloval.
+- Vizuální browser kontrola neprovedena: nástroj nemá dostupný prohlížeč.
+  HTTP/dev/build ověření dokončeno; nevykazujeme browser E2E test.
+- Na explicitní pokyn opraven globální Git e-mail a nastaven repository-local
+  GitHub noreply e-mail; jméno nezměněno. PHP krok `fddc0ef` pushnut na main.
+- Phase 01 dokončena. Bez změny architektury; Phase 02 nezahájena.
