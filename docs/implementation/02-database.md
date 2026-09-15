@@ -7,7 +7,8 @@ indexes, but no imported production dataset yet.
 
 ## Dependencies
 
-Foundation; MySQL 8.0.32+ with EPSG:5514 and `ST_Transform(..., 4326)` preflight.
+Foundation; Oracle MySQL Community Server 8.4 LTS with EPSG:5514 and
+`ST_Transform(..., 4326)` preflight.
 
 ## Small steps
 

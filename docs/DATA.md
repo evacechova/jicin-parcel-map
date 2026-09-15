@@ -179,14 +179,16 @@ manifest daily and stage only changed KÚ using the same atomicity rule.
 
 ### MySQL-specific preflight before implementation
 
-The minimum acceptable server is MySQL 8.0.32 because that version extends
-`ST_Transform()` projection support. The implementation must nevertheless run
-one small database preflight before importing the district: confirm that SRIDs
-5514 and 4326 are present in `INFORMATION_SCHEMA.ST_SPATIAL_REFERENCE_SYSTEMS`,
-that a known EPSG:5514 point transforms to 4326, and that the resulting
-`ST_AsGeoJSON()` coordinates are `[longitude, latitude]` as required by
-GeoJSON/Leaflet. This is an integration assertion about MySQL's axis-order
-handling, not a reason to transform every imported feature in advance.
+The supported server is Oracle MySQL Community Server 8.4 LTS. The original
+8.0.32 minimum identified when the required projection support first became
+available is no longer the project target. The implementation must nevertheless
+run one small database preflight before importing the district: confirm that
+SRIDs 5514 and 4326 are present in
+`INFORMATION_SCHEMA.ST_SPATIAL_REFERENCE_SYSTEMS`, that a known EPSG:5514 point
+transforms to 4326, and that the resulting `ST_AsGeoJSON()` coordinates are
+`[longitude, latitude]` as required by GeoJSON/Leaflet. This is an integration
+assertion about MySQL's axis-order handling, not a reason to transform every
+imported feature in advance.
 
 ## Full-refresh import design
 

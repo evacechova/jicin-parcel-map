@@ -12,7 +12,7 @@ does not proxy ČÚZK at runtime.
 ČÚZK CP Atom / ZIP + GML
              |
              v
-PHP CLI importer -> MySQL 8.0.32+ Spatial -> PHP API -> Leaflet frontend
+PHP CLI importer -> MySQL 8.4 LTS Spatial -> PHP API -> Leaflet frontend
                  staging / validation       GeoJSON    viewport + detail
 ```
 
@@ -92,7 +92,8 @@ extension outside this implementation; the current contract is manual full refre
 ## Boundaries
 
 - PHP is the backend runtime.
-- MySQL 8.0.32+ is required for the EPSG:5514 -> EPSG:4326 transform.
+- Oracle MySQL Community Server 8.4 LTS is the supported database target for
+  the EPSG:5514 -> EPSG:4326 transform and spatial storage.
 - The frontend uses Vite, vanilla JavaScript and Leaflet.
 - Docker, Redis, a queue, vector-tile infrastructure and live ČÚZK runtime
   calls are outside the first version.

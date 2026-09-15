@@ -12,7 +12,17 @@
     },
     "scripts": {
         "dev": "@php -S 127.0.0.1:8000 -t public public/index.php",
-        "lint": ["@php -l app/bootstrap.php", "@php -l public/index.php"]
+        "db": "@php bin/database.php",
+        "db:test": "@php bin/database.php --test",
+        "lint": [
+            "@php -l app/bootstrap.php",
+            "@php -l public/index.php",
+            "@php -l app/Database/DatabaseConfig.php",
+            "@php -l app/Database/ConnectionFactory.php",
+            "@php -l app/Database/TestDatabaseGuard.php",
+            "@php -l app/Database/MigrationRunner.php",
+            "@php -l bin/database.php"
+        ]
     },
     "config": { "process-timeout": 0 }
 }

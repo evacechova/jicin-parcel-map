@@ -1,13 +1,13 @@
 # Mapa parcel Jičín
 
-Read-only mapa katastrálních parcel okresu Jičín. Projekt je ve fázi foundation;
-parcelová data, databáze a mapa zatím nejsou implementované.
+Read-only mapa katastrálních parcel okresu Jičín. Projekt má připravený PHP/Vite
+základ a verzované databázové schéma; import dat a mapa zatím nejsou implementované.
 
 ## Lokální prostředí
 
 - PHP **8.5** a Composer 2.
 - Node.js **24 LTS** a npm.
-- Bez Dockeru. MySQL zatím není potřeba.
+- Oracle MySQL Community Server **8.4 LTS** se Spatial podporou. Docker se nepoužívá.
 
 Pokud používáš Homebrew `node@24`, v každém projektovém terminálu nastav:
 
@@ -17,6 +17,42 @@ node --version
 ```
 
 Nastavení platí pouze pro daný terminál; nemění globální konfiguraci shellu.
+
+## Databáze
+
+Migrace jsou verzované změny databázového schématu. Migrátor eviduje použité
+verze v tabulce `schema_migration`, opakované spuštění je bezpečný no-op a
+poslední krok lze vrátit pro lokální ověření.
+
+V MySQL vytvoř oddělenou aplikační a testovací databázi i uživatele. Hesla níže
+nahraď vlastními a neukládej je do Gitu:
+
+```sql
+CREATE DATABASE viagem CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER 'viagem'@'127.0.0.1' IDENTIFIED BY 'replace-me';
+GRANT ALL PRIVILEGES ON viagem.* TO 'viagem'@'127.0.0.1';
+
+CREATE DATABASE viagem_test CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER 'viagem_test'@'127.0.0.1' IDENTIFIED BY 'replace-me-too';
+GRANT ALL PRIVILEGES ON viagem_test.* TO 'viagem_test'@'127.0.0.1';
+```
+
+Zkopíruj `.env.example` do ignorovaného `.env` a nastav `DB_*`. Pro testovací
+databázi zkopíruj `.env.test.example` do ignorovaného `.env.test` a nastav
+výhradně `TEST_DB_*`. Testové příkazy odmítnou databázi, jejíž název nekončí
+`_test`, i konfiguraci shodnou s `DB_NAME`.
+
+```sh
+php bin/database.php status
+php bin/database.php migrate
+php bin/database.php rollback
+
+php bin/database.php migrate --test
+php bin/database.php status --test
+```
+
+`rollback` vrací pouze poslední migraci a je určený pro vývoj/testování. V
+běžném sdíleném prostředí se již použité migrace neupravují; přidává se další.
 
 ## PHP server
 
@@ -65,14 +101,17 @@ Produkční nasazení a webserver routing zatím nejsou součástí foundation.
 
 - `public/index.php`: jediný HTTP vstup PHP, zatím pouze foundation odpověď.
 - `app/bootstrap.php`: Composer autoload a lokální konfigurace.
+- `app/Database/`: DB konfigurace, PDO připojení, migrátor a ochrana testovací DB.
+- `database/migrations/`: vzestupné a vratné SQL migrace.
+- `bin/database.php`: stav, aplikace a vrácení migrací.
 - `frontend/index.html`, `main.js`, `style.css`: stránka, kontrola spojení a styl.
 - `vite.config.js`: frontendový root, dev proxy a výstup buildu.
 - `composer.lock`, `package-lock.json`: přesné verze závislostí pro instalaci.
 - `.env.example`: veřejný vzor konfigurace; vlastní `.env` se necommituje.
 - `docs/`: schválený návrh, fáze implementace a stručný log.
 
-Leaflet bude zapojen s mapou v Phase 05. Foundation zatím nemá doménové API,
-databázi, import ani testovací/benchmarkovou infrastrukturu dalších fází.
+Leaflet bude zapojen s mapou v Phase 05. Projekt zatím nemá doménové API,
+import ani testovací/benchmarkovou infrastrukturu dalších fází.
 
 ## Ověření
 

@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | Scope | Whole Jičín district | Measured import is manageable: 240 KÚ / 272,861 parcels. | Scope or source volume changes. |
 | Source lifecycle | ČÚZK predefined GML -> local snapshot | Reproducible demo; no runtime dependency on ČÚZK. | Live freshness becomes required. |
-| Database | MySQL 8.0.32+ Spatial | Required spatial functions and CRS conversion, aligned with Viagem stack. | Benchmarks need topology-safe generalisation or advanced GIS work. |
+| Database | Oracle MySQL Community Server 8.4 LTS Spatial | Required spatial functions and CRS conversion on a currently supported stable LTS line, aligned with the Viagem stack. | Benchmarks need topology-safe generalisation or advanced GIS work, or the next LTS is evaluated. |
 | CRS | Native 5514; API 4326 | Keeps source/local metric geometry; transforms only selected output. | New source uses different native CRS. |
 | Delivery | Viewport GeoJSON | Lowest complexity with capped payload. | Benchmarks fail after limits and optimisation. |
 | Low zoom | KÚ boundaries, optional name/count tooltip | Authoritative 240-feature LOD; keeps focus on parcel polygons and avoids an extra clustering/aggregation model. | Benchmark/UX shows it does not prevent ordinary `too_dense`. |
