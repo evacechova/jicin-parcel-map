@@ -49,6 +49,7 @@ php bin/database.php rollback
 
 php bin/database.php migrate --test
 php bin/database.php status --test
+composer verify:database
 ```
 
 `rollback` vrací pouze poslední migraci a je určený pro vývoj/testování. V
@@ -118,6 +119,7 @@ import ani testovací/benchmarkovou infrastrukturu dalších fází.
 ```sh
 composer validate --strict
 composer lint
+composer verify:database
 npm run build
 curl --fail http://127.0.0.1:8000/api
 ```

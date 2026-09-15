@@ -14,6 +14,7 @@
         "dev": "@php -S 127.0.0.1:8000 -t public public/index.php",
         "db": "@php bin/database.php",
         "db:test": "@php bin/database.php --test",
+        "verify:database": "@php tests/Integration/verify_database.php",
         "lint": [
             "@php -l app/bootstrap.php",
             "@php -l public/index.php",
@@ -21,7 +22,8 @@
             "@php -l app/Database/ConnectionFactory.php",
             "@php -l app/Database/TestDatabaseGuard.php",
             "@php -l app/Database/MigrationRunner.php",
-            "@php -l bin/database.php"
+            "@php -l bin/database.php",
+            "@php -l tests/Integration/verify_database.php"
         ]
     },
     "config": { "process-timeout": 0 }
