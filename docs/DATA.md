@@ -194,10 +194,12 @@ imported feature in advance.
 
 ### Scope selection and CLI contract
 
-The take-home importer has one intentional scope: `jicin`. A committed scope
-configuration will contain the fixed set of 240 KÚ codes, their display names
-and the CP EPSG:5514 base URL, plus a conservative `DISTRICT_BOUNDS_4326` (D)
-enclosing the complete scope. D is shared with frontend overview/KÚ bootstrap
+The take-home importer has one intentional scope: `jicin`. The committed scope
+configuration contains the fixed set of 240 KÚ codes, their display names,
+the CP EPSG:5514 base URL and the conservative `DISTRICT_BOUNDS_4326` (D)
+`[14.80, 50.15, 15.95, 50.85]` in min-longitude, min-latitude,
+max-longitude, max-latitude order. D encloses the complete scope and is shared
+with frontend overview/KÚ bootstrap
 configuration. It is not a client-location allowlist. It is not discovered by scraping the large ČÚZK
 directory on every run. For each configured code the deterministic source is
 `{base-url}/{ku_code}.zip`; the source directory remains useful only as the

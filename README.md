@@ -1,8 +1,9 @@
 # Mapa parcel Jičín
 
 Read-only mapa katastrálních parcel okresu Jičín. Projekt má připravený PHP/Vite
-základ, verzované databázové schéma a streamovaný ČÚZK parser; databázový import
-a mapa zatím nejsou implementované.
+základ, verzované databázové schéma a reprodukovatelný streamovaný full import
+ČÚZK dat s atomickou aktivací snapshotu. Doménové HTTP API a mapa zatím nejsou
+implementované.
 
 ## Lokální prostředí
 
@@ -99,11 +100,11 @@ Build vytvoří frontendové soubory v ignorovaném `dist/`. `npm run preview`
 umí lokálně zobrazit tento build a při běžícím PHP používá stejnou proxy.
 Produkční nasazení a webserver routing zatím nejsou součástí foundation.
 
-## Ověření ČÚZK parseru
+## ČÚZK import
 
-První checkpoint Phase 03 obsahuje pevný scope 240 katastrálních území okresu
-Jičín, download s omezenými retry a streamovaný ZIP/GML parser. Zatím nezapisuje
-do databáze a neaktivuje dataset.
+Phase 03 obsahuje pevný scope 240 katastrálních území okresu Jičín, download s
+omezenými retry, streamovaný ZIP/GML parser, per-KÚ databázové transakce,
+completeness validaci a atomickou aktivaci snapshotu.
 
 Deterministické fixture testy nevyžadují internet:
 
@@ -119,23 +120,37 @@ run adresáře, zkontroluje ZIP, dvakrát jej projde přímo přes `XMLReader` a
 composer smoke:cuzk
 ```
 
-Stažený ZIP ani GML nepatří do Gitu. Full district import, finální validace,
-aktivace a příkaz `bin/import-cadastral.php` budou doplněny v navazujícím
-checkpointu Phase 03.
+Stažený ZIP ani GML nepatří do Gitu.
 
 Databázový checkpoint importeru se ověřuje výhradně nad chráněnou `*_test`
 databází nakonfigurovanou přes `TEST_DB_*`:
 
 ```sh
 composer verify:importer-db
+composer verify:importer-publication
 composer smoke:importer-db
 ```
 
 První příkaz používá pouze malé lokální ZIP/GML fixtures. Druhý stáhne jedno
 aktuální KÚ `601101`, vytvoří neaktivní `importing` dataset, ověří zápis do
-MySQL a po úspěchu testová data i dočasný ZIP odstraní. Ani jeden příkaz
-neaktivuje dataset; finální validace, aktivace a full import 240 KÚ patří do
-dalšího checkpointu Phase 03.
+MySQL a po úspěchu testová data i dočasný ZIP odstraní. Třetí deterministicky
+ověří 240-KÚ orchestration loop, completeness validation, první aktivaci,
+přepnutí A → B, retirement a rollback aktivační transakce.
+
+Po nastavení `DB_*` v `.env` a aplikaci migrací spustí kompletní aktuální
+snapshot okresu veřejný příkaz:
+
+```sh
+php bin/database.php migrate
+php bin/import-cadastral.php --scope=jicin
+```
+
+Každý běh vytvoří nový dataset a vlastní
+`storage/imports/<run-id>/downloads/`; nikdy neupravuje aktivní snapshot na
+místě. Úspěšný běh po validaci atomicky přepne `active_dataset` a své ZIPy
+odstraní. Failed run se neaktivuje a artefakty ponechá pro diagnózu. Volitelný
+`--keep-artifacts` zachová ZIPy i po úspěchu. Resume není podporované; nový
+pokus vytvoří nový dataset a stáhne všech 240 KÚ znovu.
 
 ## Struktura
 
@@ -147,14 +162,15 @@ dalšího checkpointu Phase 03.
 - `config/scopes/jicin.csv`: pevný verzovaný seznam 240 KÚ okresu Jičín.
 - `database/migrations/`: vzestupné a vratné SQL migrace.
 - `bin/database.php`: stav, aplikace a vrácení migrací.
+- `bin/import-cadastral.php`: full import, validace a atomická aktivace snapshotu.
 - `frontend/index.html`, `main.js`, `style.css`: stránka, kontrola spojení a styl.
 - `vite.config.js`: frontendový root, dev proxy a výstup buildu.
 - `composer.lock`, `package-lock.json`: přesné verze závislostí pro instalaci.
 - `.env.example`: veřejný vzor konfigurace; vlastní `.env` se necommituje.
 - `docs/`: schválený návrh, fáze implementace a stručný log.
 
-Leaflet bude zapojen s mapou v Phase 05. Projekt zatím nemá doménové API,
-databázový import ani testovací/benchmarkovou infrastrukturu dalších fází.
+Leaflet bude zapojen s mapou v Phase 05. Projekt zatím nemá doménové API ani
+testovací/benchmarkovou infrastrukturu dalších fází.
 
 ## Ověření
 
@@ -164,6 +180,7 @@ composer lint
 composer verify:database
 composer verify:importer
 composer verify:importer-db
+composer verify:importer-publication
 npm run build
 curl --fail http://127.0.0.1:8000/api
 ```

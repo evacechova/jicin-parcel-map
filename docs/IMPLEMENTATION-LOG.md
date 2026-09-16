@@ -180,3 +180,52 @@
 - Úspěšný DB smoke odstranil své testové řádky a run-specific ZIP. Tento
   checkpoint neobsahuje complete-dataset validation, activation, full import,
   Phase 04 API ani performance tuning.
+
+## Phase 03 — Full orchestration, validation and activation (2026-09-16)
+
+- Přidán veřejný `php bin/import-cadastral.php --scope=jicin`. Každý běh
+  vytváří nový dataset a náhodně pojmenovaný
+  `storage/imports/<run-id>/downloads/`, sekvenčně volá ověřený per-KÚ importer
+  pro všech 240 kódů a vypisuje jeden stručný progress řádek na KÚ. Úspěšné
+  artefakty se standardně odstraní, `--keep-artifacts` je zachová; failed run
+  své artefakty ponechá a není aktivován. Resume ani historická discovery sada
+  se nepoužívají.
+- `DatasetValidator` před publikací explicitně kontroluje přesnou ordered scope
+  sadu a 240 imported checkpointů, úspěšnou source diagnostiku, přesnou sadu
+  territory rows a jmen, dataset/checkpoint/fyzické/per-KÚ parcelní součty,
+  cross-dataset vztahy a unikátní identity. Všechny KÚ i parcely musí být
+  non-empty validní SRID 5514 geometrie a po plné transformaci ležet v
+  committed `DISTRICT_BOUNDS_4326 = [14.80, 50.15, 15.95, 50.85]`.
+- `DatasetPublicationService` provede plnou validaci mimo zámky. V krátké
+  transakci zamkne singleton pointer, kandidáta a případný předchozí dataset,
+  znovu porovná přesnou scope sadu, checkpoint stavy a všechny persisted counts
+  s právě vzniklým validním reportem, nastaví kandidáta na `ready`, přepne slot
+  1 a předchozí `ready` dataset označí `retired`. První aktivace používá INSERT
+  pointeru; A → B UPDATE. Chyba před pointer write rollbackne všechny tři změny.
+- Deterministické MySQL 8.4.11 fixtures prošly pro celý 240-step orchestration
+  loop, jednotný run directory a successful cleanup, první aktivaci, A → B,
+  retirement A, pointer pouze na B, retained artifacts + `failed` dataset při
+  orchestration validation failure, chybějící KÚ, každý stav
+  `pending`/`processing`/`failed`, count mismatch a vynucenou chybu těsně před
+  pointer write. Ve všech zamítnutých případech zůstal předchozí active dataset
+  i pointer beze změny.
+- Nový live full run `20260916-143513-368c9d422844` stáhl samostatně všech 240
+  aktuálních ZIPů z ČÚZK a nepoužil historické discovery soubory. Dataset 1
+  obsahuje 240 KÚ a 272 768 parcel, ZIPy měly dohromady 123 477 457 B
+  (117,757 MiB). Všech 240 checkpointů skončilo `imported`, každý na první
+  pokus; checkpoint parcel totals, dataset counts a fyzické rows byly shodné,
+  orphan parcels 0, invalid/outside KÚ i parcely 0.
+- Full CLI čas byl 1 001,393 s (16 min 41,393 s): podle DB timestampů 790,346 s
+  import a 210,983 s validation + activation. Tento běh ještě záměrně provedl
+  úplnou validaci podruhé pod aktivačními locky. Naměřená cena vedla k finální
+  úpravě na jednu úplnou validaci plus krátký locked structural recheck; tento
+  finální transaction path znovu prošel všemi deterministickými fixtures.
+- První aktivace vytvořila `active_dataset.slot=1 -> dataset 1`; dataset 1 je
+  `ready`, má uložený `validation_report.valid=true` a žádný předchozí dataset
+  nebyl k retirementu. Skutečný nativní MBR KÚ je
+  `(-690276.36,-1031189.84)–(-645777.82,-1001824.71)` a committed D jej s
+  rezervou obsahuje. Úspěšný run-specific ZIP prostor byl odstraněn.
+- Oproti discovery snapshotu 14. 9. je aktuální parcelní počet nižší o 93
+  (`272 768` vs. `272 861`, −0,034 %); celkový ZIP objem odpovídá odhadu
+  117,76 MiB. Jde o očekávanou změnu denního ČÚZK snapshotu, ne parser/schema
+  odchylku. Phase 04 API ani frontend nebyly zahájeny.

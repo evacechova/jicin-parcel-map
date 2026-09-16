@@ -166,6 +166,36 @@ final class ImportRunRepository
         }
     }
 
+    /** @param null|array<string, mixed> $validationReport */
+    public function failDatasetIfImporting(
+        int $datasetId,
+        string $errorCode,
+        string $errorMessage,
+        ?array $validationReport = null,
+    ): void {
+        if ($this->pdo->inTransaction()) {
+            throw new ImportException('transaction_state_error', 'Cannot persist dataset failure inside another transaction.');
+        }
+
+        $report = $validationReport ?? [
+            'valid' => false,
+            'error_code' => substr($errorCode, 0, 64),
+            'error_message' => mb_substr($errorMessage, 0, 255),
+            'validated_at' => gmdate('c'),
+        ];
+        $statement = $this->pdo->prepare(<<<'SQL'
+            UPDATE dataset
+            SET status = 'failed',
+                validation_report = :validation_report,
+                completed_at = CURRENT_TIMESTAMP(6)
+            WHERE id = :dataset_id AND status = 'importing'
+            SQL);
+        $statement->execute([
+            'validation_report' => json_encode($report, JSON_THROW_ON_ERROR),
+            'dataset_id' => $datasetId,
+        ]);
+    }
+
     private function assertCheckpointExists(int $datasetId, string $kuCode, string $status): void
     {
         $statement = $this->pdo->prepare(<<<'SQL'

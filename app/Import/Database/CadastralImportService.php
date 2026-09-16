@@ -13,7 +13,7 @@ use App\Import\Source\GmlZipArchive;
 use PDO;
 use PDOException;
 
-final class CadastralImportService
+final class CadastralImportService implements TerritoryImporter
 {
     public function __construct(
         private readonly PDO $pdo,

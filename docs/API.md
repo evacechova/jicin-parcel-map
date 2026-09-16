@@ -120,7 +120,9 @@ containing all KÚ and parcel geometry in the fixed Jičín scope. It is shared
 as configuration by the API and frontend; no new metadata endpoint is needed.
 Import validation must confirm this containment before activation (see DATA.md).
 D is the overview/bootstrap extent, not an allowed-location restriction on
-client input. Frontend navigation bounds are a separately padded copy of D.
+client input. Its committed value is `[14.80, 50.15, 15.95, 50.85]` in
+min-longitude, min-latitude, max-longitude, max-latitude order. Frontend
+navigation bounds are a separately padded copy of D.
 
 For the original, unclipped request BBOX B, calculate exactly:
 

@@ -10,12 +10,14 @@ final readonly class CadastralScope
 {
     private const JICIN_BASE_URL = 'https://services.cuzk.gov.cz/gml/inspire/cp/epsg-5514';
     private const JICIN_EXPECTED_COUNT = 240;
+    private const JICIN_BOUNDS_4326 = [14.80, 50.15, 15.95, 50.85];
 
     /** @param array<int, string> $territories PHP normalises six-digit numeric keys to integers. */
     private function __construct(
         public string $code,
         public string $sourceBaseUrl,
         public array $territories,
+        public DistrictBounds $districtBounds4326,
     ) {
     }
 
@@ -72,7 +74,12 @@ final readonly class CadastralScope
             throw new ImportException('invalid_scope_order', 'The Jičín scope must be sorted by KÚ code.');
         }
 
-        return new self($code, self::JICIN_BASE_URL, $territories);
+        return new self(
+            $code,
+            self::JICIN_BASE_URL,
+            $territories,
+            new DistrictBounds(...self::JICIN_BOUNDS_4326),
+        );
     }
 
     public function downloadUrl(string $kuCode): string
