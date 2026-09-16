@@ -1,7 +1,8 @@
 # Mapa parcel Jičín
 
 Read-only mapa katastrálních parcel okresu Jičín. Projekt má připravený PHP/Vite
-základ a verzované databázové schéma; import dat a mapa zatím nejsou implementované.
+základ, verzované databázové schéma a streamovaný ČÚZK parser; databázový import
+a mapa zatím nejsou implementované.
 
 ## Lokální prostředí
 
@@ -98,11 +99,36 @@ Build vytvoří frontendové soubory v ignorovaném `dist/`. `npm run preview`
 umí lokálně zobrazit tento build a při běžícím PHP používá stejnou proxy.
 Produkční nasazení a webserver routing zatím nejsou součástí foundation.
 
+## Ověření ČÚZK parseru
+
+První checkpoint Phase 03 obsahuje pevný scope 240 katastrálních území okresu
+Jičín, download s omezenými retry a streamovaný ZIP/GML parser. Zatím nezapisuje
+do databáze a neaktivuje dataset.
+
+Deterministické fixture testy nevyžadují internet:
+
+```sh
+composer verify:importer
+```
+
+Omezený live smoke test stáhne pouze aktuální KÚ `601101` do nového dočasného
+run adresáře, zkontroluje ZIP, dvakrát jej projde přímo přes `XMLReader` a po
+úspěchu artefakt odstraní:
+
+```sh
+composer smoke:cuzk
+```
+
+Stažený ZIP ani GML nepatří do Gitu. Full district import a příkaz
+`bin/import-cadastral.php` budou doplněny až v databázové části Phase 03.
+
 ## Struktura
 
 - `public/index.php`: jediný HTTP vstup PHP, zatím pouze foundation odpověď.
 - `app/bootstrap.php`: Composer autoload a lokální konfigurace.
 - `app/Database/`: DB konfigurace, PDO připojení, migrátor a ochrana testovací DB.
+- `app/Import/`: scope, bezpečný download, ZIP kontrola a streamovaný GML parser.
+- `config/scopes/jicin.csv`: pevný verzovaný seznam 240 KÚ okresu Jičín.
 - `database/migrations/`: vzestupné a vratné SQL migrace.
 - `bin/database.php`: stav, aplikace a vrácení migrací.
 - `frontend/index.html`, `main.js`, `style.css`: stránka, kontrola spojení a styl.
@@ -112,7 +138,7 @@ Produkční nasazení a webserver routing zatím nejsou součástí foundation.
 - `docs/`: schválený návrh, fáze implementace a stručný log.
 
 Leaflet bude zapojen s mapou v Phase 05. Projekt zatím nemá doménové API,
-import ani testovací/benchmarkovou infrastrukturu dalších fází.
+databázový import ani testovací/benchmarkovou infrastrukturu dalších fází.
 
 ## Ověření
 
@@ -120,6 +146,7 @@ import ani testovací/benchmarkovou infrastrukturu dalších fází.
 composer validate --strict
 composer lint
 composer verify:database
+composer verify:importer
 npm run build
 curl --fail http://127.0.0.1:8000/api
 ```

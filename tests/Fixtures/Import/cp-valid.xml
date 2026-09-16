@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<base:SpatialDataSet
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:cp="http://inspire.ec.europa.eu/schemas/cp/4.0"
+    xmlns:gml="http://www.opengis.net/gml/3.2"
+    xmlns:base="http://inspire.ec.europa.eu/schemas/base/3.3"
+    gml:id="CP.SD.601101">
+  <base:member>
+    <cp:CadastralZoning gml:id="fixture-gml-zoning-id">
+      <cp:beginLifespanVersion>2023-02-24T15:00:50Z</cp:beginLifespanVersion>
+      <cp:geometry>
+        <gml:MultiSurface gml:id="S.CZ.601101" srsName="http://www.opengis.net/def/crs/EPSG/0/5514" srsDimension="2">
+          <gml:surfaceMember>
+            <gml:Polygon gml:id="S.CZ.601101.1">
+              <gml:exterior><gml:LinearRing><gml:posList>-10 -10 0 -10 0 0 -10 0 -10 -10</gml:posList></gml:LinearRing></gml:exterior>
+            </gml:Polygon>
+          </gml:surfaceMember>
+          <gml:surfaceMember>
+            <gml:Polygon gml:id="S.CZ.601101.2">
+              <gml:exterior><gml:LinearRing><gml:posList>10 10 20 10 20 20 10 20 10 10</gml:posList></gml:LinearRing></gml:exterior>
+            </gml:Polygon>
+          </gml:surfaceMember>
+        </gml:MultiSurface>
+      </cp:geometry>
+      <cp:inspireId><base:Identifier><base:localId>CZ.601101</base:localId><base:namespace>CZ-00025712-CUZK_CP</base:namespace></base:Identifier></cp:inspireId>
+      <cp:label>Bašnice</cp:label>
+      <cp:nationalCadastalZoningReference>601101</cp:nationalCadastalZoningReference>
+      <cp:referencePoint><gml:Point gml:id="R.CZ.601101" srsName="http://www.opengis.net/def/crs/EPSG/0/5514" srsDimension="2"><gml:pos>-5 -5</gml:pos></gml:Point></cp:referencePoint>
+      <cp:validFrom xsi:nil="true" />
+    </cp:CadastralZoning>
+  </base:member>
+  <base:member>
+    <cp:CadastralParcel gml:id="fixture-gml-parcel-id-1">
+      <cp:areaValue uom="m2">64.25</cp:areaValue>
+      <cp:beginLifespanVersion>2025-09-10T13:53:34Z</cp:beginLifespanVersion>
+      <cp:geometry>
+        <gml:Polygon gml:id="P.CP.fixture-1" srsName="http://www.opengis.net/def/crs/EPSG/0/5514" srsDimension="2">
+          <gml:exterior><gml:LinearRing><gml:posList>0 0 10 0 10 10 0 10 0 0</gml:posList></gml:LinearRing></gml:exterior>
+          <gml:interior><gml:LinearRing><gml:posList>2 2 2 4 4 4 4 2 2 2</gml:posList></gml:LinearRing></gml:interior>
+        </gml:Polygon>
+      </cp:geometry>
+      <cp:inspireId><base:Identifier><base:localId>CP.fixture-1</base:localId><base:namespace>CZ-00025712-CUZK_CP</base:namespace></base:Identifier></cp:inspireId>
+      <cp:label>1/1</cp:label>
+      <cp:nationalCadastralReference>601101-1/1</cp:nationalCadastralReference>
+      <cp:referencePoint><gml:Point gml:id="R.CP.fixture-1" srsName="http://www.opengis.net/def/crs/EPSG/0/5514" srsDimension="2"><gml:pos>1 1</gml:pos></gml:Point></cp:referencePoint>
+      <cp:validFrom xsi:nil="true" />
+      <cp:zoning xlink:href="https://example.test/wfs?service=WFS&amp;Id=CZ.601101" />
+    </cp:CadastralParcel>
+  </base:member>
+  <base:member>
+    <cp:CadastralParcel gml:id="fixture-gml-parcel-id-2">
+      <cp:areaValue uom="m2">200</cp:areaValue>
+      <cp:geometry>
+        <gml:MultiSurface gml:id="P.CP.fixture-2" srsName="http://www.opengis.net/def/crs/EPSG/0/5514" srsDimension="2">
+          <gml:surfaceMember><gml:Polygon><gml:exterior><gml:LinearRing><gml:posList>20 20 30 20 30 30 20 30 20 20</gml:posList></gml:LinearRing></gml:exterior></gml:Polygon></gml:surfaceMember>
+          <gml:surfaceMember><gml:Polygon><gml:exterior><gml:LinearRing><gml:pos>40 40</gml:pos><gml:pos>50 40</gml:pos><gml:pos>50 50</gml:pos><gml:pos>40 50</gml:pos><gml:pos>40 40</gml:pos></gml:LinearRing></gml:exterior></gml:Polygon></gml:surfaceMember>
+        </gml:MultiSurface>
+      </cp:geometry>
+      <cp:inspireId><base:Identifier><base:localId>CP.fixture-2</base:localId><base:namespace>CZ-00025712-CUZK_CP</base:namespace></base:Identifier></cp:inspireId>
+      <cp:label>2</cp:label>
+      <cp:nationalCadastralReference>601101-2</cp:nationalCadastralReference>
+      <cp:validFrom>2020-01-02T03:04:05Z</cp:validFrom>
+      <cp:zoning xlink:href="https://example.test/wfs?Id=CZ.601101" />
+    </cp:CadastralParcel>
+  </base:member>
+</base:SpatialDataSet>

@@ -13,6 +13,7 @@
 *.sqlite3
 *.db
 /dumps/
+/storage/imports/
 *.zip
 *.gml
 /coverage/

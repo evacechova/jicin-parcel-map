@@ -97,3 +97,43 @@
   použitý `key`. Nedošlo k další odchylce od schváleného databázového modelu.
 - Phase 02 neimplementuje importer, GML parser, API, S2 viewport transform,
   frontend ani performance tuning.
+
+## Phase 03 — Parser/download foundation checkpoint (2026-09-16)
+
+- Z oficiálního číselníku `SC_SEZNAMKUKRA_DOTAZ` byl ověřen a verzován pevný,
+  seřazený scope `jicin`: přesně 240 unikátních šestimístných kódů pro okres
+  `3604`, bez chybějícího, přebývajícího nebo odlišně pojmenovaného KÚ.
+- Deterministický zdroj jednoho KÚ je
+  `https://services.cuzk.gov.cz/gml/inspire/cp/epsg-5514/{KU_KOD}.zip`.
+  Downloader zapisuje každý pokus do samostatného `.part`, používá konečné
+  timeouty, publikuje až po ZIP kontrole atomickým rename a retryuje pouze
+  transportní chyby a HTTP 408/429/5xx v režimu 0/1/3 s; `Retry-After` je
+  omezen na 30 s. HTTP 404 ani poškozený ZIP se neopakují.
+- ZIP vrstva přijímá právě jeden bezpečně pojmenovaný `{KU_KOD}.xml`, kontroluje
+  konzistenci, velikost, kompresní poměr a celý entry stream. XML se nerozbaluje
+  na disk; parser otevírá `zip://...#entry` přímo přes `XMLReader` s vypnutými
+  substitucemi entit a zakázanou sítí.
+- Parser pracuje dopředně po jednom `CadastralZoning` nebo `CadastralParcel`,
+  bez DOM/SimpleXML a bez dokumentového bufferu. `Polygon` i `MultiSurface`
+  normalizuje na WKT `MULTIPOLYGON`, zachovává exterior/interior rings a odmítá
+  jiné CRS, dimenzi, neuzavřený ring, nečíselnou souřadnici a překročení
+  feature limitů. `areaValue` zůstává zdrojová hodnota v `m2`.
+- INSPIRE identita pochází explicitně z
+  `cp:inspireId/base:Identifier/base:localId`; `gml:id` se čte odděleně a parser
+  jejich rovnost nepředpokládá. Fixture to ověřuje rozdílnými hodnotami.
+- Deterministické fixture testy pokrývají KÚ MultiSurface, parcelní Polygon s
+  dírou, parcelní MultiSurface, `posList`/`pos`, nullable metadata, chybějící
+  povinné pole, neuzavřený ring, malformed XML, ZIP entry ochranu, retry s
+  `Retry-After` a fail-fast HTTP 404.
+- Live smoke stáhl novým samostatným runem KÚ `601101`: ZIP 587 038 B,
+  SHA-256 `d7c3ba2398bb6a4437de1153f461d4cf748fcdc3374a875956390f230af5ad02`,
+  XML 15 402 232 B, jedno `CadastralZoning` a 1 466 parcel. KÚ je reálný
+  `MultiSurface` s jedním polygonem; parcely byly Polygon, 43 interior rings,
+  žádný parcelní MultiSurface. Všech 1 466 reálných `localId` se rovnalo
+  `gml:id`, ale ukládá se stále explicitní `localId`.
+- Během dvou kompletních XMLReader průchodů zůstal PHP alokovaný peak na
+  2 MiB (naměřený delta 0 B proti stavu před parsováním), hluboko pod 15,4 MB
+  XML. Jeden objekt je po iteraci uvolněn; žádný seznam parcel se nehromadí.
+- Tento checkpoint záměrně nevytváří dataset, checkpointy ani DB řádky,
+  neaktivuje snapshot a nespouští full district import. Historická discovery
+  sada ZIPů z 14. 9. nebyla použita ani smíchána s aktuálním smoke downloadem.
