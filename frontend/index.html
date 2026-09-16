@@ -3,13 +3,82 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mapa parcel Jičín</title>
+    <meta name="theme-color" content="#eef1eb" />
+    <title>Katastrální parcely · Jičín</title>
   </head>
   <body>
-    <main>
-      <h1>Mapa parcel Jičín</h1>
-      <p>Základ aplikace je připravený. Mapa a parcelová data přibudou v dalších fázích.</p>
-      <p id="connection-status" role="status">Ověřuji spojení se serverem…</p>
+    <main id="app" class="app-shell">
+      <header class="app-title">
+        <p class="app-title__eyebrow">Mapa parcel</p>
+        <h1>Katastrální parcely · Jičín</h1>
+      </header>
+
+      <div
+        id="map"
+        role="region"
+        aria-label="Interaktivní mapa katastrálních území a parcel okresu Jičín"
+        aria-describedby="map-guidance"
+      ></div>
+
+      <p id="map-guidance" class="map-guidance" aria-live="polite">
+        Načítám hranice katastrálních území…
+      </p>
+
+      <section id="map-status" class="map-status" role="status" aria-live="polite">
+        <span class="map-status__spinner" aria-hidden="true"></span>
+        <span id="map-status-text">Načítám hranice katastrálních území…</span>
+        <button id="map-retry" class="map-status__retry" type="button" hidden>
+          Zkusit znovu
+        </button>
+      </section>
+
+      <p id="basemap-status" class="basemap-status" role="status" hidden>
+        Mapový podklad není právě dostupný. Katastrální data mohou dál fungovat.
+      </p>
+
+      <aside id="parcel-detail" class="parcel-detail" aria-labelledby="parcel-detail-title" hidden>
+        <header class="parcel-detail__header">
+          <div>
+            <p class="parcel-detail__eyebrow">Parcela</p>
+            <h2 id="parcel-detail-title" tabindex="-1">Detail parcely</h2>
+          </div>
+          <button
+            id="parcel-detail-close"
+            class="parcel-detail__close"
+            type="button"
+            aria-label="Zavřít detail parcely"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </header>
+
+        <p id="parcel-detail-status" class="parcel-detail__status" role="status" aria-live="polite"></p>
+        <dl id="parcel-detail-fields" class="parcel-detail__fields" hidden>
+          <div>
+            <dt>Parcelní číslo</dt>
+            <dd data-detail="label"></dd>
+          </div>
+          <div>
+            <dt>Výměra</dt>
+            <dd data-detail="area"></dd>
+          </div>
+          <div>
+            <dt>Katastrální území</dt>
+            <dd data-detail="territory"></dd>
+          </div>
+          <div>
+            <dt>Katastrální reference</dt>
+            <dd data-detail="reference"></dd>
+          </div>
+        </dl>
+        <button id="parcel-detail-retry" class="parcel-detail__retry" type="button" hidden>
+          Zkusit znovu
+        </button>
+      </aside>
+
+      <noscript>
+        <p class="noscript-message">Interaktivní mapa vyžaduje zapnutý JavaScript.</p>
+      </noscript>
     </main>
     <script type="module" src="/main.js"></script>
   </body>

@@ -10,7 +10,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
+      // A plain `/api` prefix would also intercept frontend assets such as `/api.js`.
+      '^/api(?:/|$)': 'http://127.0.0.1:8000',
     },
   },
   build: {

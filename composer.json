@@ -25,6 +25,8 @@
             "@php tests/Integration/verify_api.php"
         ],
         "benchmark:api": "@php tests/Performance/benchmark_api.php",
+        "seed:frontend-benchmark": "@php tests/Performance/frontend_benchmark_fixture.php seed",
+        "clean:frontend-benchmark": "@php tests/Performance/frontend_benchmark_fixture.php clean",
         "smoke:cuzk": "@php tests/Integration/smoke_cuzk_601101.php",
         "smoke:importer-db": "@php tests/Integration/smoke_cadastral_import_601101.php",
         "lint": [
@@ -82,6 +84,7 @@
             "@php -l tests/Integration/verify_spatial_envelope.php",
             "@php -l tests/Integration/verify_api.php",
             "@php -l tests/Performance/benchmark_api.php",
+            "@php -l tests/Performance/frontend_benchmark_fixture.php",
             "@php -l tests/Importer/verify_parser_download.php",
             "@php -l tests/Integration/smoke_cuzk_601101.php"
         ]

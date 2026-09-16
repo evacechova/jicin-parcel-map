@@ -4,7 +4,8 @@ Read-only mapa katastrálních parcel okresu Jičín. Projekt má připravený P
 základ, verzované databázové schéma a reprodukovatelný streamovaný full import
 ČÚZK dat s atomickou aktivací snapshotu. Read-only HTTP API poskytuje hranice
 KÚ a viewportové parcelní GeoJSON pouze z atomicky aktivovaného snapshotu;
-frontendová mapa zatím implementovaná není.
+Leaflet frontend načítá úplnou KÚ fallback vrstvu, podle zoomu bezpečně mění
+parcelní viewporty a zobrazuje zdrojově podložený detail vybrané parcely.
 
 ## Lokální prostředí
 
@@ -133,17 +134,38 @@ Nech běžet `composer dev` v prvním terminálu. Ve druhém, také s Node 24, s
 npm run dev
 ```
 
-Otevři **http://127.0.0.1:5173**. Stránka zobrazí stav spojení s PHP.
-Vite předává `/api` na PHP port 8000, takže prohlížeč používá jednu adresu
-bez potřeby CORS nastavení. Oba servery ukončíš pomocí Ctrl+C.
+Otevři **http://127.0.0.1:5173**. Mapa nejprve načte a ověří všech 240 KÚ přes
+fixní okresní BBOX. Pod zoomem 17 je ponechá jako smysluplnou vrstvu; od zoomu
+17 načítá pouze parcely aktuálního viewportu. Kliknutí na KÚ mapu přiblíží,
+kliknutí na parcelu načte její výměru, KÚ a katastrální referenci. `too_dense`
+tiše obnoví KÚ fallback; síťová/serverová chyba zachová poslední použitelná
+data a nabídne retry.
+
+Vite předává pouze `/api` a `/api/...` na PHP port 8000, takže prohlížeč používá
+jednu adresu bez potřeby CORS nastavení. Oba servery ukončíš pomocí Ctrl+C.
 
 ```sh
+npm run test:frontend
 npm run build
 ```
 
 Build vytvoří frontendové soubory v ignorovaném `dist/`. `npm run preview`
 umí lokálně zobrazit tento build a při běžícím PHP používá stejnou proxy.
-Produkční nasazení a webserver routing zatím nejsou součástí foundation.
+Produkční nasazení a webserver routing zatím nejsou součástí projektu.
+
+Reprodukovatelný browser benchmark používá výhradně chráněnou `*_test`
+databázi, seed 240 KÚ / 1 500 syntetických parcel, běžící PHP/Vite servery a
+lokálně nainstalovaný Google Chrome. `DB_*` PHP serveru musí ukazovat na stejnou
+fixture databázi jako `TEST_DB_*` seederu:
+
+```sh
+composer seed:frontend-benchmark
+npm run benchmark:frontend
+composer clean:frontend-benchmark
+```
+
+Benchmark stubuje OSM tiles, aby neměřil externí službu. Jeho omezení a
+naměřené Phase 05 výsledky jsou v `docs/PERFORMANCE.md`.
 
 ## ČÚZK import
 
@@ -210,14 +232,17 @@ pokus vytvoří nový dataset a stáhne všech 240 KÚ znovu.
 - `database/migrations/`: vzestupné a vratné SQL migrace.
 - `bin/database.php`: stav, aplikace a vrácení migrací.
 - `bin/import-cadastral.php`: full import, validace a atomická aktivace snapshotu.
-- `frontend/index.html`, `main.js`, `style.css`: stránka, kontrola spojení a styl.
+- `frontend/`: Leaflet map view, API klient, request koordinátory, detail a styl.
+- `tests/Frontend/`: rychlé API/lifecycle testy bez simulování Leaflet internals.
+- `tests/Performance/frontend_benchmark_fixture.php`: chráněný browser fixture seed/cleanup.
+- `tests/Performance/benchmark_frontend.mjs`: Chrome/Leaflet benchmark a `too_dense` kontrola.
 - `vite.config.js`: frontendový root, dev proxy a výstup buildu.
 - `composer.lock`, `package-lock.json`: přesné verze závislostí pro instalaci.
 - `.env.example`: veřejný vzor konfigurace; vlastní `.env` se necommituje.
 - `docs/`: schválený návrh, fáze implementace a stručný log.
 
-Leaflet bude zapojen s mapou v Phase 05. Phase 04 záměrně nepřidává cache,
-vector tiles, S2 index, background služby ani mutation endpointy.
+Mapa záměrně nepřidává parcelní cache, clustering, vector tiles, S2 index,
+background služby ani mutation endpointy.
 
 ## Ověření
 
@@ -229,6 +254,7 @@ composer verify:importer
 composer verify:importer-db
 composer verify:importer-publication
 composer verify:api
+npm run test:frontend
 npm run build
 curl --fail http://127.0.0.1:8000/api
 ```

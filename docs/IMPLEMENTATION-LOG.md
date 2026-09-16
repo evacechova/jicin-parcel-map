@@ -295,3 +295,55 @@
   `git diff --check`. První build přes globální Node 25 narazil na dříve
   zdokumentovanou chybějící `libsimdjson.29.dylib`; podporovaný Node 24 build
   prošel. HTTP dev-server smoke potvrdil 200/400/404/503 a CORS preflight.
+
+## Phase 05 — Leaflet frontend, parcel detail and browser benchmark (2026-09-17)
+
+- Aktuální zadání Phase 05 výslovně sloučilo mapu, parcelní integraci, detail a
+  browser performance benchmark. Starší `IMPLEMENTATION-PLAN.md` a soubory
+  `implementation/05-frontend-map.md` až `07-performance.md` tyto kroky dělí
+  mezi Phase 05–07; jde o historické číslování, nikoli aktuální scope. Tyto
+  historické dokumenty nebyly přepsány ani smazány. Implementace zachovává
+  všechny již commitnuté Phase 01–04 kontrakty.
+- Přidán Leaflet 1.9.4 nad stávající vanilla Vite frontend: OSM raster s
+  attribution, scale a standardním zoomem, přístupné tlačítko „Celý okres“,
+  fixed-D initial/reset fit s 32px paddingem, `D.pad(0.10)` maxBounds a podle
+  skutečného containeru přepočítávaný integer minZoom. Resize nevrací platný
+  detailní viewport násilně na overview.
+- KÚ bootstrap vždy volá přesné committed D, načítá CSV scope jako Vite raw
+  build asset a před publikací vyžaduje přesně všech 240 unikátních KÚ kódů.
+  Má vlastní abort/generation lifecycle, takže jej pan/resize neruší. KÚ vrstva
+  zůstává celou session; tooltip/tap/focus nese název a parcel count a click
+  používá normální `fitBounds`/`moveend` tok.
+- Parcelní controller používá `moveend`, 150ms debounce, integer zoom 17,
+  aktuální EPSG:4326 BBOX v pořadí longitude/latitude, AbortController a
+  generation guard. Úspěch atomicky nahradí GeoJSON layer, prázdné `200` smaže
+  jen parcely, `too_dense`/policy tiše obnoví KÚ a síť/500/503 zachová poslední
+  použitelnou vrstvu s jedním retry. Během replacement loading je stará vrstva
+  pouze vizuálně utlumená.
+- Parcelní click/tap/keyboard selection se projeví před requestem a metadata se
+  čtou výhradně z existujícího detail endpointu. Responsivní desktop sidebar a
+  tablet/mobile non-modal bottom sheet zobrazují jen parcelní číslo, výměru,
+  KÚ a katastrální referenci. Detail 404 selection zruší; close vrací keyboard
+  focus, kde je to praktické. Texty se vkládají přes `textContent`; panel a
+  Leaflet controls/attribution se layoutově nepřekrývají.
+- Vite proxy byla zpřesněna z prefixu `/api` na regex `/api` nebo `/api/...`;
+  původní prefix po přidání modulu `/api.js` chybně proxyoval frontendový asset
+  do PHP. Browser smoke dále odhalil nesprávně bindovaný nativní `setTimeout`
+  v debounce adapteru (`Illegal invocation`); arrow wrapper opravil browser
+  runtime bez změny 150ms kontraktu.
+- Přidán Vitest 4.1.11 (starší zkusmo instalovaná 4.0.17 byla ještě před
+  použitím odstraněna kvůli zveřejněným path-traversal advisories), 14 testů
+  API/lifecycle kontraktu a reprodukovatelný Playwright/Chrome benchmark.
+  npm audit po opravené instalaci hlásil 0 zranitelností.
+- Browser fixture používá chráněnou MySQL `*_test` DB, úplný 240-KÚ bootstrap a
+  1 500 syntetických 17-coordinate parcel. Po jednom warm-upu a pěti měřeních
+  měl Chrome 152 desktop 1 500 features: request p50/p95 119,8/120,9 ms,
+  JSON parse 2,6/2,7 ms, Leaflet render 26,6/27,6 ms, 850 934 B; mobile vracel
+  1 033 features: 88,3/94,2 ms, 1,9/2,1 ms, 19,8/20,0 ms a 586 027 B. Nebyl
+  zaznamenán žádný >50ms long task. `too_dense` zachoval 240 KÚ, 0 parcel a
+  žádný error/retry status. Jde transparentně o fixture, ne full-snapshot claim.
+- Finální ověření prošlo přes `composer validate --strict`, `composer lint`,
+  `composer verify:importer`, všechny MySQL 8.4 integrační sady
+  (`verify:database`, `verify:importer-db`, `verify:importer-publication`,
+  `verify:api`), 14 Vitest testů, produkční Vite build, browser benchmark a
+  `npm audit` s nulovým počtem známých zranitelností.

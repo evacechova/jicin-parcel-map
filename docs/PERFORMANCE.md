@@ -96,5 +96,40 @@ payload also supports the original hypothesis that transfer/render complexity
 will matter before native candidate lookup. The wide request returned the
 small `too_dense` error instead of parcel geometry. No cache, S2 index,
 simplification or vector-tile mechanism is justified by this backend fixture;
-repeat the benchmark against the real full snapshot and measure Leaflet in
-Phase 05.
+repeat the benchmark against the real full snapshot before making production
+capacity claims.
+
+## Phase 05 browser fixture results (2026-09-17)
+
+The full 272,768-parcel snapshot was still not available in a running local
+database. Browser measurements therefore used a reproducible MySQL 8.4.11
+fixture with the complete committed 240-code KÚ bootstrap and 1,500 synthetic
+parcel polygons. Each parcel ring had 17 coordinates, intentionally more than
+the earlier rectangular API fixture but not a claim about the real dataset's
+vertex distribution. The frontend called the real Phase 04 PHP API through
+the Vite proxy; only external OSM tiles were stubbed.
+
+Google Chrome 152.0.7977.83 ran headless. One warm-up was discarded and five
+warm runs were measured per viewport. `request` includes fetch and JSON parse;
+`render` measures synchronous Leaflet GeoJSON layer creation and atomic layer
+replacement. Payload bytes are Resource Timing decoded-body values; Vite/PHP
+development serving did not gzip these local responses.
+
+| Viewport | Returned features | Request p50 / p95 | JSON parse p50 / p95 | Leaflet render p50 / p95 | Decoded JSON | Long tasks | JS heap p50 / p95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Desktop 1440×900 | 1,500 | 119.8 / 120.9 ms | 2.6 / 2.7 ms | 26.6 / 27.6 ms | 850,934 B | 0 / 0 | 21.38 / 21.45 MB |
+| Mobile 390×844 | 1,033 | 88.3 / 94.2 ms | 1.9 / 2.1 ms | 19.8 / 20.0 ms | 586,027 B | 0 / 0 | 20.49 / 20.49 MB |
+
+The same script selected a visible parcel, loaded the metadata-only detail,
+closed it, and asserted that the desktop sidebar and mobile bottom sheet did
+not overlap zoom/reset/scale controls or attribution. A deterministic
+`409 too_dense` interception retained all 240 KÚ, rendered zero parcel paths
+and showed no retry/error status, matching the documented silent fallback.
+
+These results support retaining viewport GeoJSON and Leaflet for the current
+implementation: even the deliberately high 1,500-feature desktop fixture had
+no task over 50 ms and layer replacement stayed below 28 ms p95. They do not
+validate the real snapshot's geometry-complexity distribution, weaker physical
+devices, Firefox/Safari, gzip transfer, or repeated long-session memory. The
+real imported snapshot and wider device/browser matrix remain required before
+changing the provisional zoom threshold or claiming production capacity.
