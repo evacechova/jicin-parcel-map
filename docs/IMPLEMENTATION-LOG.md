@@ -137,3 +137,46 @@
 - Tento checkpoint záměrně nevytváří dataset, checkpointy ani DB řádky,
   neaktivuje snapshot a nespouští full district import. Historická discovery
   sada ZIPů z 14. 9. nebyla použita ani smíchána s aktuálním smoke downloadem.
+
+## Phase 03 — Database import pipeline checkpoint (2026-09-16)
+
+- Přidán `ImportRunRepository` pro atomické vytvoření nového `importing`
+  datasetu a všech 240 `pending` checkpointů, záznam každého download pokusu,
+  metadata ověřeného ZIPu a bezpečný přechod checkpointu/datasetu do `failed`.
+  Retry nastavuje `attempt_count` na existujícím unikátním řádku; nevkládá nový
+  checkpoint.
+- `CadastralWriteRepository` používá opakovaně připravené statementy a
+  `ST_GeomFromText(..., 5514, 'axis-order=srid-defined')` pro normalizované
+  MULTIPOLYGON i nullable POINT. Mapuje explicitní INSPIRE `localId`, label,
+  národní referenci, zdrojové `areaValue`, `validFrom` a
+  `beginLifespanVersion`; source date-times se převádějí do UTC `DATETIME(6)`.
+- `CadastralImportService` řídí download a dvě parser pass. Po uložení download
+  diagnostiky otevře jednu per-KÚ transakci: zamkne processing checkpoint,
+  ověří KÚ vůči scope, vloží territory, postupně po jednom vkládá parcely,
+  aktualizuje checkpoint na `imported` a inkrementuje dataset counts. Jakákoli
+  parser/DB chyba rollbackne territory, všechny parcely, counts i `imported`
+  status; až potom samostatná krátká transakce uloží `failed` stav. Služba se
+  ukazatele `active_dataset` vůbec nedotýká.
+- Deterministické DB integration fixtures běžely na izolovaném Oracle MySQL
+  Community Server 8.4.11 (`viagem_test`, localhost port 33309) a prošly.
+  Úspěšná větev vytvořila 240 checkpointů, po HTTP 500 + 200 měla stále 240
+  řádků, `attempt_count=2`, jeden uložený KÚ a dvě parcely. Ověřeny byly všechny
+  metadata fields, SRID 5514, validita geometrií, dvoupolygonový territory
+  MultiSurface, parcelní hole a dvoupolygonový parcelní MultiSurface.
+- Failure fixture měl duplicitní INSPIRE parcel `localId` ve druhé parcele.
+  Databázový unique constraint vyvolal chybu uprostřed KÚ; per-KÚ rollback
+  zanechal pro failed dataset nula territory, nula parcel a nulové counts.
+  Checkpoint zachoval download checksum, přešel na `failed` s bezpečným
+  `database_error` a současný aktivní ready dataset i jeho pointer byly před a
+  po chybě beze změny. Znovu byl ověřen composite FK proti cross-dataset vazbě.
+- Live DB smoke použil nový samostatný download KÚ `601101`, nikoli historickou
+  discovery sadu. ZIP měl 587 038 B a SHA-256
+  `d7c3ba2398bb6a4437de1153f461d4cf748fcdc3374a875956390f230af5ad02`.
+  Za 1,089 s od download startu po DB commit vznikl jeden KÚ a 1 466 parcel;
+  parser result, checkpoint, dataset counts a fyzické DB rows se shodovaly.
+  Všech 1 466 parcel a KÚ byly validní v SRID 5514, zachovalo se 43 holes a
+  nebyl pozorován parcelní MultiSurface. Checkpoint byl `imported`, pokus jeden,
+  dataset zůstal `importing` a `active_dataset` byl před i po prázdný.
+- Úspěšný DB smoke odstranil své testové řádky a run-specific ZIP. Tento
+  checkpoint neobsahuje complete-dataset validation, activation, full import,
+  Phase 04 API ani performance tuning.

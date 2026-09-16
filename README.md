@@ -119,8 +119,23 @@ run adresáře, zkontroluje ZIP, dvakrát jej projde přímo přes `XMLReader` a
 composer smoke:cuzk
 ```
 
-Stažený ZIP ani GML nepatří do Gitu. Full district import a příkaz
-`bin/import-cadastral.php` budou doplněny až v databázové části Phase 03.
+Stažený ZIP ani GML nepatří do Gitu. Full district import, finální validace,
+aktivace a příkaz `bin/import-cadastral.php` budou doplněny v navazujícím
+checkpointu Phase 03.
+
+Databázový checkpoint importeru se ověřuje výhradně nad chráněnou `*_test`
+databází nakonfigurovanou přes `TEST_DB_*`:
+
+```sh
+composer verify:importer-db
+composer smoke:importer-db
+```
+
+První příkaz používá pouze malé lokální ZIP/GML fixtures. Druhý stáhne jedno
+aktuální KÚ `601101`, vytvoří neaktivní `importing` dataset, ověří zápis do
+MySQL a po úspěchu testová data i dočasný ZIP odstraní. Ani jeden příkaz
+neaktivuje dataset; finální validace, aktivace a full import 240 KÚ patří do
+dalšího checkpointu Phase 03.
 
 ## Struktura
 
@@ -128,6 +143,7 @@ Stažený ZIP ani GML nepatří do Gitu. Full district import a příkaz
 - `app/bootstrap.php`: Composer autoload a lokální konfigurace.
 - `app/Database/`: DB konfigurace, PDO připojení, migrátor a ochrana testovací DB.
 - `app/Import/`: scope, bezpečný download, ZIP kontrola a streamovaný GML parser.
+- `app/Import/Database/`: dataset/checkpoint lifecycle a transakční zápis jednoho KÚ.
 - `config/scopes/jicin.csv`: pevný verzovaný seznam 240 KÚ okresu Jičín.
 - `database/migrations/`: vzestupné a vratné SQL migrace.
 - `bin/database.php`: stav, aplikace a vrácení migrací.
@@ -147,6 +163,7 @@ composer validate --strict
 composer lint
 composer verify:database
 composer verify:importer
+composer verify:importer-db
 npm run build
 curl --fail http://127.0.0.1:8000/api
 ```

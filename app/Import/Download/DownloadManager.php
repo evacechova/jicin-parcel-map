@@ -18,8 +18,16 @@ final class DownloadManager
     ) {
     }
 
-    /** @param Closure(string): void $integrityCheck */
-    public function download(string $url, string $target, Closure $integrityCheck): DownloadedFile
+    /**
+     * @param Closure(string): void $integrityCheck
+     * @param null|Closure(int, DownloadAttemptResult): void $attemptObserver
+     */
+    public function download(
+        string $url,
+        string $target,
+        Closure $integrityCheck,
+        ?Closure $attemptObserver = null,
+    ): DownloadedFile
     {
         if (file_exists($target)) {
             throw new ImportException('download_target_exists', 'The run-local download target already exists.');
@@ -44,6 +52,9 @@ final class DownloadManager
 
             try {
                 $result = $this->transport->fetch($url, $part);
+                if ($attemptObserver !== null) {
+                    $attemptObserver($attempt, $result);
+                }
             } catch (\Throwable $exception) {
                 self::removePartial($part);
                 throw $exception;

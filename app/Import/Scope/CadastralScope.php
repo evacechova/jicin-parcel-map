@@ -11,7 +11,7 @@ final readonly class CadastralScope
     private const JICIN_BASE_URL = 'https://services.cuzk.gov.cz/gml/inspire/cp/epsg-5514';
     private const JICIN_EXPECTED_COUNT = 240;
 
-    /** @param array<string, string> $territories */
+    /** @param array<int, string> $territories PHP normalises six-digit numeric keys to integers. */
     private function __construct(
         public string $code,
         public string $sourceBaseUrl,
@@ -95,5 +95,11 @@ final readonly class CadastralScope
         }
 
         return $url;
+    }
+
+    /** @return list<string> */
+    public function territoryCodes(): array
+    {
+        return array_map(static fn (int $code): string => (string) $code, array_keys($this->territories));
     }
 }
