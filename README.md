@@ -2,8 +2,9 @@
 
 Read-only mapa katastrálních parcel okresu Jičín. Projekt má připravený PHP/Vite
 základ, verzované databázové schéma a reprodukovatelný streamovaný full import
-ČÚZK dat s atomickou aktivací snapshotu. Doménové HTTP API a mapa zatím nejsou
-implementované.
+ČÚZK dat s atomickou aktivací snapshotu. Read-only HTTP API poskytuje hranice
+KÚ a viewportové parcelní GeoJSON pouze z atomicky aktivovaného snapshotu;
+frontendová mapa zatím implementovaná není.
 
 ## Lokální prostředí
 
@@ -67,12 +68,56 @@ cp .env.example .env
 composer dev
 ```
 
-`http://127.0.0.1:8000/api` vrací jednoduchou foundation odpověď s názvem aplikace.
+`http://127.0.0.1:8000/api` vrací jednoduchou health odpověď s názvem aplikace.
 Server je určený pouze pro lokální vývoj. Ukončení: Ctrl+C.
 
 `.env` obsahuje lokální konfiguraci a nepatří do Gitu. Bez něj fungují výchozí
 hodnoty. Existující proměnné prostředí mají přednost. Do frontendových `VITE_*`
 proměnných nikdy nepatří secrets, protože se dostávají do prohlížeče.
+`APP_CORS_ORIGIN` je jediný povolený development origin (výchozí Vite
+`http://127.0.0.1:5173`); wildcard ani credentials se nepoužívají.
+
+## Read-only HTTP API
+
+API používá prefix `/api/v1`, standardní GeoJSON v EPSG:4326 a čte výhradně
+dataset vybraný `active_dataset.slot = 1`, pokud má současně stav `ready`.
+Geometrie v databázi zůstávají v EPSG:5514.
+
+```sh
+curl --get 'http://127.0.0.1:8000/api/v1/cadastral-territories' \
+  --data-urlencode 'bbox=14.80,50.15,15.95,50.85'
+
+curl --get 'http://127.0.0.1:8000/api/v1/parcels' \
+  --data-urlencode 'bbox=15.30,50.40,15.31,50.41' \
+  --data-urlencode 'zoom=17'
+
+curl 'http://127.0.0.1:8000/api/v1/parcels/CP.99632534010'
+```
+
+- `GET /api/v1/cadastral-territories?bbox=minLng,minLat,maxLng,maxLat` vrací
+  `FeatureCollection` s `ku_code`, názvem a importovaným počtem parcel.
+- `GET /api/v1/parcels?bbox=...&zoom=17` vrací nejvýše 2 000 kompletních
+  parcelních features (`id` je INSPIRE ID, jediná property je `label`).
+- `GET /api/v1/parcels/{inspireId}` vrací metadata zvolené parcely bez geometrie.
+
+BBOX musí být jedna skalární čtveřice v pořadí longitude/latitude, v platném
+WGS84 rozsahu a se vzestupnými mezemi. Parcelní geometrie je dostupná od zoomu
+17. Příliš velký span vrací `422`; viewport s více než 2 000 parcelami vrací
+`409 too_dense`, nikdy oříznutou parcelní vrstvu. Validní prázdný viewport je
+`200` s prázdným `FeatureCollection`. Chyby mají jednotný JSON envelope s
+bezpečným `code`, zprávou a request ID; databázové detaily se neposílají.
+
+Deterministická validace nevyžaduje DB. Kompletní API/spatial suite používá
+chráněnou MySQL 8.4 `*_test` databázi z `TEST_DB_*`:
+
+```sh
+composer verify:api-validation
+composer verify:api
+composer benchmark:api
+```
+
+Benchmark dočasně seeduje 20 000 jednoduchých parcel do testovací databáze a
+po skončení je odstraní; není součástí běžné correctness suite.
 
 ## Frontend
 
@@ -154,9 +199,11 @@ pokus vytvoří nový dataset a stáhne všech 240 KÚ znovu.
 
 ## Struktura
 
-- `public/index.php`: jediný HTTP vstup PHP, zatím pouze foundation odpověď.
+- `public/index.php`: jediný HTTP vstup PHP a allowlisted API router.
 - `app/bootstrap.php`: Composer autoload a lokální konfigurace.
 - `app/Database/`: DB konfigurace, PDO připojení, migrátor a ochrana testovací DB.
+- `app/Http/`, `app/Api/`: request/response vrstva, validace, routing a API kontrakt.
+- `app/Geo/`, `app/Read/`: konzervativní BBOX převod, active-dataset read služba a SQL repository.
 - `app/Import/`: scope, bezpečný download, ZIP kontrola a streamovaný GML parser.
 - `app/Import/Database/`: dataset/checkpoint lifecycle a transakční zápis jednoho KÚ.
 - `config/scopes/jicin.csv`: pevný verzovaný seznam 240 KÚ okresu Jičín.
@@ -169,8 +216,8 @@ pokus vytvoří nový dataset a stáhne všech 240 KÚ znovu.
 - `.env.example`: veřejný vzor konfigurace; vlastní `.env` se necommituje.
 - `docs/`: schválený návrh, fáze implementace a stručný log.
 
-Leaflet bude zapojen s mapou v Phase 05. Projekt zatím nemá doménové API ani
-testovací/benchmarkovou infrastrukturu dalších fází.
+Leaflet bude zapojen s mapou v Phase 05. Phase 04 záměrně nepřidává cache,
+vector tiles, S2 index, background služby ani mutation endpointy.
 
 ## Ověření
 
@@ -181,6 +228,7 @@ composer verify:database
 composer verify:importer
 composer verify:importer-db
 composer verify:importer-publication
+composer verify:api
 npm run build
 curl --fail http://127.0.0.1:8000/api
 ```

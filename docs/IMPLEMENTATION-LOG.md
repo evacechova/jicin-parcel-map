@@ -229,3 +229,69 @@
   (`272 768` vs. `272 861`, −0,034 %); celkový ZIP objem odpovídá odhadu
   117,76 MiB. Jde o očekávanou změnu denního ČÚZK snapshotu, ne parser/schema
   odchylku. Phase 04 API ani frontend nebyly zahájeny.
+
+## Phase 04 — Read-only HTTP API (2026-09-16)
+
+- Přidána framework-free vrstva `app/Http`/`app/Api`: explicitní GET routing,
+  JSON response, request ID, jednotný bezpečný error envelope a kanonické
+  parsování raw query stringu, které zachytí chybějící, opakované, array,
+  neznámé a malformed parametry dříve, než se dostanou do SQL. BBOX odmítá
+  nečíselné/NaN/infinity/exponentové hodnoty, mezery, špatný počet souřadnic,
+  obrácené bounds a hodnoty mimo WGS84. Zoom přijímá jen kanonické celé 0–22.
+  Development CORS odpovídá pouze exact `APP_CORS_ORIGIN`, bez wildcard a
+  credentials; trusted preflight vrátil 204/GET, untrusted origin nedostal
+  allow header.
+- Implementovány tři commitnuté read-only endpointy:
+  `GET /api/v1/cadastral-territories?bbox=...`,
+  `GET /api/v1/parcels?bbox=...&zoom=...` a metadata-only
+  `GET /api/v1/parcels/{inspireId}`. KÚ feature nese pouze kód, jméno a
+  checkpoint parcel count; viewportová parcela pouze stabilní INSPIRE `id` a
+  `label`. Geometrie je standardní GeoJSON MultiPolygon v EPSG:4326.
+- Každý doménový request běží v MySQL read-only repeatable-read transakci.
+  Dataset se resolveuje výhradně přes `active_dataset.slot=1 INNER JOIN
+  dataset.status='ready'`; stejné pointer/status joiny zůstávají ve všech
+  datových dotazech. Neexistuje fallback na latest ani libovolný ready dataset.
+  Deterministický fixture s dvěma ready datasety prokázal, že neaktivní data se
+  neobjeví; pointer na importing dataset vrací bezpečné `503`.
+- Veřejný 4326 BBOX se po validaci protne s committed D. Disjoint dotaz se po
+  resolve aktivního datasetu vrátí prázdný bez CRS transformace. Relevantní
+  hranice se vzorkuje nejvýše po 0,01°, jeden bound MULTIPOINT se v MySQL
+  transformuje do 5514 a native min/max obálka se rozšíří o 25 m. SQL používá
+  `MBRIntersects` jako candidate filtr a `ST_Intersects` přesný vůči této
+  konzervativní obálce; indexovaný uložený sloupec se v predicate nikdy
+  netransformuje. Jen vybrané řádky jdou přes `ST_Transform(...,4326)` a
+  `ST_AsGeoJSON(...,8)`.
+- MySQL 8.4.11 spatial preflight ověřil MULTIPOINT transformaci a axis order.
+  Nezávislé husté vzorky pokryly celý D, malý a velmi tenký viewport i bodový a
+  čárový contact; při 0,01° kroku nebyl na reportovanou přesnost pozorován únik
+  z hrubé obálky, zatímco runtime používá 25m outward margin. Parcelní fixtures
+  zasahující každou ze čtyř hran a roh byly zahrnuty, vzdálená geometrie
+  vyloučena. `EXPLAIN ANALYZE` skutečně použil
+  `sp_parcel_geom_native`.
+- Safety policy zůstala u commitnutých počátečních hodnot: parcelní zoom
+  minimálně 17, originální longitude/latitude span nejvýše velikost D a hard
+  ceiling 2 000 features. SQL čte 2 001; přítomnost poslední vrací
+  `409 too_dense` a nikdy částečný FeatureCollection. KÚ limit je 240. Validní
+  prázdný viewport je `200`; nevalidní syntax `400`; size/LOD policy `422`;
+  chybějící ready pointer `503`; kontrolovaná query failure `500` bez SQL textu.
+- Přidány čisté validační testy, MySQL API/spatial integrační testy a samostatný
+  reprodukovatelný benchmark. Testy pokrývají active resolver, více ready
+  datasetů, pointer isolation, KÚ, parcelní BBOX, empty result, všechny hlavní
+  invalid BBOX třídy, GeoJSON/SRID, detail, database failure, edge fixtures,
+  index plán, missing/importing active dataset a 2 001-row limit.
+- Plný aktivní Jičín snapshot nebyl v běžícím lokálním MySQL ani v zachovaných
+  `/private/tmp` datadirech dostupný. Benchmark proto transparentně použil
+  20 000 jednoduchých fixture parcel na MySQL 8.4.11. Malý viewport měl 90
+  candidates/results, p50/p95 2,862/3,831 ms a 23 081 B; střední 1 545,
+  44,146/44,663 ms a 396 002 B; celý fixture extent 20 000 a bezpečné 409 za
+  189,410/192,908 ms s 123B JSON. Spatial index byl použit ve všech třech.
+- Výsledek neodůvodňuje cache, S2 indexing, vector tiles, simplification ani
+  jinou spekulativní infrastrukturu. Plný snapshot a browser/Leaflet rendering
+  zůstávají navazující Phase 05 měření; frontendová integrace nebyla zahájena.
+- Finální verification prošla: `composer validate --strict`, `composer lint`,
+  `composer verify:database`, `composer verify:importer`,
+  `composer verify:importer-db`, `composer verify:importer-publication`,
+  `composer verify:api`, explicitní Node 24 `npm run build` a
+  `git diff --check`. První build přes globální Node 25 narazil na dříve
+  zdokumentovanou chybějící `libsimdjson.29.dylib`; podporovaný Node 24 build
+  prošel. HTTP dev-server smoke potvrdil 200/400/404/503 a CORS preflight.

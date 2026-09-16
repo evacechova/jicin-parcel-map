@@ -13,6 +13,8 @@ The initial server constants are intentionally conservative and benchmarkable:
 `PARCEL_MIN_ZOOM=17`, `PARCEL_FEATURE_LIMIT=2000`,
 `TERRITORY_FEATURE_LIMIT=240`, and endpoint-specific maximum longitude and
 latitude spans defined below. These are size limits, not containment rules.
+The native-envelope correctness pair is `EDGE_SAMPLE_STEP_DEGREES=0.01` and
+`QUERY_MARGIN_METRES=25`.
 The threshold is duplicated as a small frontend
 build constant and enforced by the API; a separate metadata endpoint would add
 an initial request without enabling a needed UI. The frontend's normal
@@ -241,6 +243,14 @@ do not silently fall back to four corners or claim correctness from timing.
 No general GIS engine, PROJ dependency, new CRS or database change is planned.
 The reasoning behind edge densification is also documented by
 [PROJ's bounds transformation](https://proj.org/en/stable/development/reference/functions.html#c.proj_trans_bounds).
+
+Phase 04 verified the chosen 0.01°/25 m pair on MySQL 8.4.11 with independent
+dense transformed samples over D, small and thin viewports and point/line
+contacts. No dense sample escaped the unexpanded coarse envelope at the
+reported precision; the 25 m outward margin therefore remains deliberately
+conservative. Boundary-crossing parcel fixtures cover all four edges and a
+corner. `EXPLAIN ANALYZE` on both correctness and benchmark data confirmed use
+of `sp_parcel_geom_native` rather than relying on index existence alone.
 
 ```sql
 -- :query_envelope_wkt is Q, already built by the conservative helper.

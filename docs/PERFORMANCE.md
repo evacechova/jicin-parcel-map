@@ -75,4 +75,26 @@ GeoJSON remains if realistic requests meet interaction targets across the
 viewport/device matrix without visible lag. Consider a different rendering or
 delivery approach (including vector tiles) only after measurement proves the
 simple GeoJSON path fails despite SQL, payload and rendering optimisation.
-There are no results yet.
+## Phase 04 backend fixture results (2026-09-16)
+
+The imported 272,768-parcel Jičín snapshot was not available in the running
+local database during Phase 04 verification. A reproducible MySQL 8.4.11
+fixture benchmark therefore used 20,000 simple rectangular parcel polygons in
+one active ready dataset. Ten warm API calls were measured per scenario; the
+payload size is uncompressed JSON. These figures validate the query shape and
+guardrail, but do not claim full-snapshot or browser-rendering performance.
+
+| Scenario | BBOX | MBR candidates | Exact results | HTTP | API p50 / p95 | JSON bytes | Spatial index |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Small | `15.30,50.35,15.31,50.36` | 90 | 90 | 200 | 2.862 / 3.831 ms | 23,081 | yes |
+| Medium | `15.28,50.34,15.33,50.38` | 1,545 | 1,545 | 200 | 44.146 / 44.663 ms | 396,002 | yes |
+| Deliberately too dense | `14.80,50.15,15.95,50.85` | 20,000 | 20,000 | 409 | 189.410 / 192.908 ms | 123 | yes |
+
+`EXPLAIN ANALYZE` named `sp_parcel_geom_native` in every scenario. The ordinary
+small/medium paths are fast enough to retain viewport GeoJSON. The medium
+payload also supports the original hypothesis that transfer/render complexity
+will matter before native candidate lookup. The wide request returned the
+small `too_dense` error instead of parcel geometry. No cache, S2 index,
+simplification or vector-tile mechanism is justified by this backend fixture;
+repeat the benchmark against the real full snapshot and measure Leaflet in
+Phase 05.

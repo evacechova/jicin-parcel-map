@@ -31,6 +31,12 @@ Foundation, migrated schema and a validated dataset (fixture or imported).
 The three documented endpoints return their contract. Invalid input, absent
 data, too-dense BBOX and unexpected errors use the agreed status/error envelope.
 
+Implemented in Phase 04 with framework-free `app/Http`, `app/Api`, `app/Geo`
+and `app/Read` layers. `composer verify:api` runs pure validation plus real
+MySQL 8.4 spatial/API tests; `composer benchmark:api` is the separate 20k-row
+fixture benchmark. Full details and measured results are in the implementation
+log and `PERFORMANCE.md`.
+
 ## Risks / confirmations
 
 Confirm `MBRIntersects` + `ST_Intersects` index plan on actual MySQL before
