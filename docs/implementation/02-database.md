@@ -1,5 +1,11 @@
 # 02 — Database
 
+> **Historical implementation plan.** Some phase boundaries and decisions
+> evolved during implementation. See the [README](../../README.md),
+> [Production Notebook](../PRODUCTION-NOTEBOOK.md),
+> [Architecture](../ARCHITECTURE.md) and
+> [Implementation Log](../IMPLEMENTATION-LOG.md) for the final/current state.
+
 ## Goal
 
 Create versioned MySQL schema with native EPSG:5514 geometry and required

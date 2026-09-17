@@ -42,13 +42,16 @@ need.
 
 ### District navigation bounds and bootstrap
 
-Use the shared conservative `DISTRICT_BOUNDS_4326` (D) from API.md. Set
-Leaflet `maxBounds` to `D.pad(0.10)` and `maxBoundsViscosity=1.0`: an initial
-10% latitude/longitude-span padding on each side, not a measured optimum.
+The implemented map uses the shared conservative `DISTRICT_BOUNDS_4326` (D)
+from API.md, Leaflet `maxBounds = D.pad(0.10)` and
+`maxBoundsViscosity = 1.0`: an initial 10% latitude/longitude-span padding on
+each side, not a measured optimum.
 Do not mask or clip the map to the irregular district polygon. Standard
 wheel, drag, keyboard, double-click and touch navigation remain enabled.
-These bounds keep normal navigation near the district; they are a frontend
-UX constraint and provide no API validation/security guarantee.
+These bounds constrain normal navigation around the district, but their
+effective surrounding context still depends on viewport aspect ratio and
+Leaflet behaviour. Further device-level tuning remains a UX improvement. They
+provide no API validation/security guarantee.
 
 Initial view and “Celý okres” both call `fitBounds(D)` with 32px screen
 padding. Keep `zoomSnap=1`. Set the map's minimum zoom to the integer overview
@@ -236,11 +239,13 @@ the user’s current viewport and never prefetch/bulk-download them.
 This is reviewer-demo scope, not a production SLA. For public/production usage,
 choose an approved provider or self-host tiles according to expected traffic.
 
-## Open implementation confirmations
+## Remaining UX verification and tuning
 
-- Check KÚ/parcel contrast against live OSM tiles.
-- Test bottom-sheet height, focus return and touch targets on actual browsers.
-- Confirm KÚ `fitBounds` padding and its `maxZoom` bound to the provisional
-  parcel LOD threshold, especially for very small KÚ.
-- Decide after a small usability check whether the passive low-zoom hint helps;
-  omit it if KÚ click/fit-to-bounds is self-explanatory.
+- The Chrome fixture verified desktop/mobile-size panel placement and control
+  non-overlap, but broader physical-device, touch and live-OSM contrast checks
+  remain useful.
+- Existing `maxBounds`, responsive overview minimum zoom and KÚ `fitBounds`
+  padding should be tuned further if usability checks show too much irrelevant
+  surrounding area or awkward behaviour for very small KÚ.
+- System dark appearance and more width/height combinations remain additional
+  visual verification, not completed cross-browser claims.

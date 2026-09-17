@@ -1,300 +1,233 @@
 # Mapa parcel Jičín
 
-Read-only mapa katastrálních parcel okresu Jičín. Projekt má připravený PHP/Vite
-základ, verzované databázové schéma a reprodukovatelný streamovaný full import
-ČÚZK dat s atomickou aktivací snapshotu. Read-only HTTP API poskytuje hranice
-KÚ a viewportové parcelní GeoJSON pouze z atomicky aktivovaného snapshotu;
-Leaflet frontend načítá úplnou KÚ fallback vrstvu, podle zoomu bezpečně mění
-parcelní viewporty a zobrazuje zdrojově podložený detail vybrané parcely.
+Read-only webová mapa katastrálních parcel pro **celý okres Jičín**. Poslední
+ověřený real-data E2E snapshot obsahuje **240 katastrálních území a 272 768
+parcel**. Backend je framework-free PHP, data jsou uložená v MySQL 8.4 Spatial
+a frontend používá vanilla JavaScript, Leaflet a Vite.
 
-## Lokální prostředí
+Zdrojová data pocházejí z veřejných ČÚZK INSPIRE Cadastral Parcels ZIP/GML
+souborů. Aplikace je předem stáhne a publikuje jako lokální verzovaný snapshot;
+při práci s mapou neposílá live viewport requesty do ČÚZK.
 
-- PHP **8.5** a Composer 2.
-- Node.js **24 LTS** a npm.
-- Oracle MySQL Community Server **8.4 LTS** se Spatial podporou. Docker se nepoužívá.
+## Jak funguje výkon nad celým okresem
 
-Pokud používáš Homebrew `node@24`, v každém projektovém terminálu nastav:
+Celý okres je dostupný v databázi, ale všech 272 768 parcel se nikdy neposílá
+ani nevykresluje současně:
+
+- vzdálený pohled používá úplnou, omezenou vrstvu 240 KÚ;
+- parcelní vrstva se načítá až od zoomu 17 a pouze pro aktuální viewport;
+- backend filtruje nativní EPSG:5514 geometrie přes MySQL spatial index;
+- hard limit je 2 000 parcel a SQL čte `limit + 1`;
+- při překročení limitu API vrátí `409 too_dense`, nikoli neúplnou parcelní
+  vrstvu, a klient ponechá KÚ jako smysluplný fallback.
+
+Benchmarky, jejich metodika a omezení jsou v
+[Performance](docs/PERFORMANCE.md). Technický request flow popisuje
+[Architecture](docs/ARCHITECTURE.md).
+
+## Prerequisites
+
+- PHP **8.5** a Composer 2;
+- PHP extensions `curl`, `mbstring`, `pdo_mysql`, `xmlreader`/XML a `zip`;
+- Oracle MySQL Community Server **8.4 LTS** se Spatial podporou;
+- Node.js **24.x**, npm a internetové připojení pro instalaci dependencies,
+  ČÚZK import a OSM mapové dlaždice;
+- jednorázový MySQL admin přístup pro server-global SRS provisioning.
+
+Docker není potřeba.
+
+Na macOS s Homebrew `node@24` lze pro aktuální shell použít:
 
 ```sh
 export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
 node --version
 ```
 
-Nastavení platí pouze pro daný terminál; nemění globální konfiguraci shellu.
+Jde pouze o Homebrew convenience; projekt obecně vyžaduje Node 24.x.
 
-## Databáze
+## Fresh clone → running application
 
-MySQL musí mít jednorázově, na úrovni serveru, zaregistrovanou aplikační
-transformační definici `SRID 1005514`. Na fresh MySQL 8.4 ji nainstaluj jako
-databázový administrátor ještě před migrací/importem:
+### 1. Clone a dependencies
 
 ```sh
-mysql --user=root --password < database/spatial-reference/1005514.sql
+git clone https://github.com/evacechova/jicin-parcel-map
+cd jicin-parcel-map
+composer install
+npm ci
 ```
 
-SQL záměrně používá prosté `CREATE SPATIAL REFERENCE SYSTEM`, nikoli
-`OR REPLACE`: existující definici nikdy tiše nepřepíše. Pokud `1005514` už na
-serveru existuje, nejprve spusť `composer verify:srs`; chybějící nebo obsahově
-odlišná definice je blokující chyba s očekávaným SHA-256. Běžný aplikační účet
-nepotřebuje oprávnění definici vytvářet. Pro testovací připojení použij
-`composer verify:srs:test`.
+### 2. Aplikační konfigurace
 
-Migrace jsou verzované změny databázového schématu. Migrátor eviduje použité
-verze v tabulce `schema_migration`, opakované spuštění je bezpečný no-op a
-poslední krok lze vrátit pro lokální ověření.
+macOS/Linux/Git Bash:
 
-V MySQL vytvoř oddělenou aplikační a testovací databázi i uživatele. Hesla níže
-nahraď vlastními a neukládej je do Gitu:
+```sh
+cp .env.example .env
+```
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+V ignorovaném `.env` nastav vlastní připojení:
+
+```dotenv
+APP_NAME="Mapa parcel Jičín"
+APP_CORS_ORIGIN=http://127.0.0.1:5173
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=viagem
+DB_USER=viagem
+DB_PASSWORD=replace-with-a-local-password
+```
+
+`APP_NAME`, `APP_CORS_ORIGIN`, `DB_HOST`, `DB_PORT` a `DB_PASSWORD` mají
+implementační defaults; `DB_NAME` a `DB_USER` jsou pro DB-backed příkazy a
+mapové API povinné. Pro reprodukovatelný setup nastav celý blok výše v `.env`
+nebo process environment. Skutečné credentials nepatří do Gitu.
+
+### 3. Databáze a aplikační uživatel
+
+Jako MySQL administrátor vytvoř databázi a lokálního aplikačního uživatele;
+heslo musí odpovídat `.env`:
 
 ```sql
-CREATE DATABASE viagem CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-CREATE USER 'viagem'@'127.0.0.1' IDENTIFIED BY 'replace-me';
+CREATE DATABASE viagem
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_0900_ai_ci;
+CREATE USER 'viagem'@'127.0.0.1'
+  IDENTIFIED BY 'replace-with-a-local-password';
 GRANT ALL PRIVILEGES ON viagem.* TO 'viagem'@'127.0.0.1';
-
-CREATE DATABASE viagem_test CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-CREATE USER 'viagem_test'@'127.0.0.1' IDENTIFIED BY 'replace-me-too';
-GRANT ALL PRIVILEGES ON viagem_test.* TO 'viagem_test'@'127.0.0.1';
 ```
 
-Zkopíruj `.env.example` do ignorovaného `.env` a nastav `DB_*`. Pro testovací
-databázi zkopíruj `.env.test.example` do ignorovaného `.env.test` a nastav
-výhradně `TEST_DB_*`. Testové příkazy odmítnou databázi, jejíž název nekončí
-`_test`, i konfiguraci shodnou s `DB_NAME`.
+### 4. Provisioning aplikačního SRS
+
+MySQL server musí mít před importem jednorázově zaregistrované
+aplikační SRS `1005514`. Na fresh MySQL 8.4 ho vytvoř jako serverový
+administrátor. Tento tvar funguje v POSIX shellu, Git Bash, Windows CMD i
+PowerShellu:
 
 ```sh
-composer install
-composer verify:srs
-composer verify:srs:test
-
-php bin/database.php status
-php bin/database.php migrate
-php bin/database.php rollback
-
-php bin/database.php migrate --test
-php bin/database.php status --test
-composer verify:database
+mysql --user=root --password --execute="source database/spatial-reference/1005514.sql"
 ```
 
-`rollback` vrací pouze poslední migraci a je určený pro vývoj/testování. V
-běžném sdíleném prostředí se již použité migrace neupravují; přidává se další.
+Provisioning je server-global admin krok. Běžný aplikační uživatel definici
+pouze čte a admin oprávnění nepotřebuje. SQL záměrně nepoužívá `OR REPLACE`:
+existující definice se nesmí tiše přepsat. Pokud `1005514` na serveru už
+existuje, creation command znovu nespouštěj; ověř jej následujícím příkazem.
+Chybějící nebo obsahově odlišná definice je blokující chyba.
 
-## PHP server
+```sh
+composer verify:srs
+```
 
-Z kořene projektu:
+Tato kontrola musí projít před dlouhým importem.
+
+### 5. Migrace
+
+```sh
+php bin/database.php migrate
+php bin/database.php status
+```
+
+`rollback` není součást běžného setup flow; je dostupný jen jako vývojový
+příkaz pro vrácení poslední migrace.
+
+### 6. Import celého okresu
+
+```sh
+php bin/import-cadastral.php --scope=jicin
+```
+
+Žádné samostatné stažení databáze ani datasetu není potřeba; tento příkaz
+stáhne zdrojové archivy z ČÚZK a vytvoří lokální MySQL snapshot.
+
+Full MySQL databáze ani snapshot s 272 768 parcelami nejsou commitnuté. Tento
+veřejný importer stáhne všech 240 KÚ z ČÚZK, streamovaně je uloží do nového
+inactive datasetu, zvaliduje úplnost a geometrie a až potom snapshot atomicky
+aktivuje. Runtime mapy následně ČÚZK nepotřebuje.
+
+V posledním ověřeném lokálním E2E běhu trval dataset lifecycle pro 240 KÚ a
+272 768 parcel přibližně **168,6 s (2 min 49 s)**. Jde o konkrétní referenční
+měření; čas závisí na hardware, síti a dostupnosti ČÚZK.
+
+### 7. Spuštění backendu a frontendu
+
+V prvním terminálu:
 
 ```sh
 composer dev
 ```
 
-`http://127.0.0.1:8000/api` vrací jednoduchou health odpověď s názvem aplikace.
-Server je určený pouze pro lokální vývoj. Ukončení: Ctrl+C.
+PHP poslouchá na `http://127.0.0.1:8000`; health endpoint je
+`http://127.0.0.1:8000/api`.
 
-`.env` obsahuje lokální konfiguraci a nepatří do Gitu. Bez něj fungují výchozí
-hodnoty. Existující proměnné prostředí mají přednost. Do frontendových `VITE_*`
-proměnných nikdy nepatří secrets, protože se dostávají do prohlížeče.
-`APP_CORS_ORIGIN` je jediný povolený development origin (výchozí Vite
-`http://127.0.0.1:5173`); wildcard ani credentials se nepoužívají.
-
-## Read-only HTTP API
-
-API používá prefix `/api/v1`, standardní GeoJSON v EPSG:4326 a čte výhradně
-dataset vybraný `active_dataset.slot = 1`, pokud má současně stav `ready`.
-Geometrie v databázi zůstávají v EPSG:5514. Veřejné souřadnice se obousměrně
-převádějí přes ověřenou aplikační definici `1005514`; uložené geometrie se jen
-pro výpočet přeznačí a žádná datová migrace ani reimport nejsou potřeba.
-
-```sh
-curl --get 'http://127.0.0.1:8000/api/v1/cadastral-territories' \
-  --data-urlencode 'bbox=14.80,50.15,15.95,50.85'
-
-curl --get 'http://127.0.0.1:8000/api/v1/parcels' \
-  --data-urlencode 'bbox=15.30,50.40,15.31,50.41' \
-  --data-urlencode 'zoom=17'
-
-curl 'http://127.0.0.1:8000/api/v1/parcels/CP.99632534010'
-```
-
-- `GET /api/v1/cadastral-territories?bbox=minLng,minLat,maxLng,maxLat` vrací
-  `FeatureCollection` s `ku_code`, názvem a importovaným počtem parcel.
-- `GET /api/v1/parcels?bbox=...&zoom=17` vrací nejvýše 2 000 kompletních
-  parcelních features (`id` je INSPIRE ID, jediná property je `label`).
-- `GET /api/v1/parcels/{inspireId}` vrací metadata zvolené parcely bez geometrie.
-
-BBOX musí být jedna skalární čtveřice v pořadí longitude/latitude, v platném
-WGS84 rozsahu a se vzestupnými mezemi. Parcelní geometrie je dostupná od zoomu
-17. Příliš velký span vrací `422`; viewport s více než 2 000 parcelami vrací
-`409 too_dense`, nikdy oříznutou parcelní vrstvu. Validní prázdný viewport je
-`200` s prázdným `FeatureCollection`. Chyby mají jednotný JSON envelope s
-bezpečným `code`, zprávou a request ID; databázové detaily se neposílají.
-
-Deterministická validace nevyžaduje DB. Kompletní API/spatial suite používá
-chráněnou MySQL 8.4 `*_test` databázi z `TEST_DB_*`:
-
-```sh
-composer verify:api-validation
-composer verify:srs:test
-composer verify:crs
-composer verify:api
-composer benchmark:api
-```
-
-Benchmark dočasně seeduje 20 000 jednoduchých parcel do testovací databáze a
-po skončení je odstraní; není součástí běžné correctness suite.
-
-## Frontend
-
-Po nastavení Node 24 nainstaluj závislosti z lockfilu:
-
-```sh
-npm ci
-```
-
-Nech běžet `composer dev` v prvním terminálu. Ve druhém, také s Node 24, spusť:
+Ve druhém terminálu, s Node 24.x:
 
 ```sh
 npm run dev
 ```
 
-Otevři **http://127.0.0.1:5173**. Mapa nejprve načte a ověří všech 240 KÚ přes
-fixní okresní BBOX. Pod zoomem 17 je ponechá jako smysluplnou vrstvu; od zoomu
-17 načítá pouze parcely aktuálního viewportu. Kliknutí na KÚ mapu přiblíží,
-kliknutí na parcelu načte její výměru, KÚ a katastrální referenci. `too_dense`
-tiše obnoví KÚ fallback; síťová/serverová chyba zachová poslední použitelná
-data a nabídne retry.
+Otevři **http://127.0.0.1:5173**.
 
-Vite předává pouze `/api` a `/api/...` na PHP port 8000, takže prohlížeč používá
-jednu adresu bez potřeby CORS nastavení. Oba servery ukončíš pomocí Ctrl+C.
+Mapa nejprve zobrazí hranice všech 240 KÚ. Kliknutí na KÚ přiblíží jeho rozsah;
+od zoomu 17 se načítají parcely aktuálního viewportu. Kliknutí na parcelu otevře
+její číslo, výměru, KÚ a katastrální referenci.
 
-```sh
-npm run test:frontend
-npm run build
-```
+## Základní ověření
 
-Build vytvoří frontendové soubory v ignorovaném `dist/`. `npm run preview`
-umí lokálně zobrazit tento build a při běžícím PHP používá stejnou proxy.
-Produkční nasazení a webserver routing zatím nejsou součástí projektu.
-
-Reprodukovatelný browser benchmark používá výhradně chráněnou `*_test`
-databázi, seed 240 KÚ / 1 500 syntetických parcel, běžící PHP/Vite servery a
-lokálně nainstalovaný Google Chrome. `DB_*` PHP serveru musí ukazovat na stejnou
-fixture databázi jako `TEST_DB_*` seederu:
-
-```sh
-composer seed:frontend-benchmark
-npm run benchmark:frontend
-composer clean:frontend-benchmark
-```
-
-Benchmark stubuje OSM tiles, aby neměřil externí službu. Jeho omezení a
-naměřené Phase 05 výsledky jsou v `docs/PERFORMANCE.md`.
-
-## ČÚZK import
-
-Phase 03 obsahuje pevný scope 240 katastrálních území okresu Jičín, download s
-omezenými retry, streamovaný ZIP/GML parser, per-KÚ databázové transakce,
-completeness validaci a atomickou aktivaci snapshotu.
-
-Deterministické fixture testy nevyžadují internet:
-
-```sh
-composer verify:importer
-```
-
-Omezený live smoke test stáhne pouze aktuální KÚ `601101` do nového dočasného
-run adresáře, zkontroluje ZIP, dvakrát jej projde přímo přes `XMLReader` a po
-úspěchu artefakt odstraní:
-
-```sh
-composer smoke:cuzk
-```
-
-Stažený ZIP ani GML nepatří do Gitu.
-
-Databázový checkpoint importeru se ověřuje výhradně nad chráněnou `*_test`
-databází nakonfigurovanou přes `TEST_DB_*`:
-
-```sh
-composer verify:importer-db
-composer verify:importer-publication
-composer smoke:importer-db
-```
-
-První příkaz používá pouze malé lokální ZIP/GML fixtures. Druhý stáhne jedno
-aktuální KÚ `601101`, vytvoří neaktivní `importing` dataset, ověří zápis do
-MySQL a po úspěchu testová data i dočasný ZIP odstraní. Třetí deterministicky
-ověří 240-KÚ orchestration loop, completeness validation, první aktivaci,
-přepnutí A → B, retirement a rollback aktivační transakce.
-
-Po nastavení `DB_*` v `.env` a aplikaci migrací spustí kompletní aktuální
-snapshot okresu veřejný příkaz:
-
-```sh
-php bin/database.php migrate
-php bin/import-cadastral.php --scope=jicin
-```
-
-Každý běh vytvoří nový dataset a vlastní
-`storage/imports/<run-id>/downloads/`; nikdy neupravuje aktivní snapshot na
-místě. Úspěšný běh po validaci atomicky přepne `active_dataset` a své ZIPy
-odstraní. Failed run se neaktivuje a artefakty ponechá pro diagnózu. Volitelný
-`--keep-artifacts` zachová ZIPy i po úspěchu. Resume není podporované; nový
-pokus vytvoří nový dataset a stáhne všech 240 KÚ znovu.
-
-## Struktura
-
-- `public/index.php`: jediný HTTP vstup PHP a allowlisted API router.
-- `app/bootstrap.php`: Composer autoload a lokální konfigurace.
-- `app/Database/`: DB konfigurace, PDO připojení, migrátor a ochrana testovací DB.
-- `app/Http/`, `app/Api/`: request/response vrstva, validace, routing a API kontrakt.
-- `app/Geo/`, `app/Read/`: konzervativní BBOX převod, active-dataset read služba a SQL repository.
-- `app/Import/`: scope, bezpečný download, ZIP kontrola a streamovaný GML parser.
-- `app/Import/Database/`: dataset/checkpoint lifecycle a transakční zápis jednoho KÚ.
-- `config/scopes/jicin.csv`: pevný verzovaný seznam 240 KÚ okresu Jičín.
-- `database/migrations/`: vzestupné a vratné SQL migrace.
-- `database/spatial-reference/1005514.sql`: jednorázový serverový provisioning
-  ověřené obousměrné S-JTSK/WGS 84 transformační cesty.
-- `bin/database.php`: stav, aplikace a vrácení migrací.
-- `bin/import-cadastral.php`: full import, validace a atomická aktivace snapshotu.
-- `frontend/`: Leaflet map view, API klient, request koordinátory, detail a styl.
-- `tests/Frontend/`: rychlé API/lifecycle testy bez simulování Leaflet internals.
-- `tests/Performance/frontend_benchmark_fixture.php`: chráněný browser fixture seed/cleanup.
-- `tests/Performance/benchmark_frontend.mjs`: Chrome/Leaflet benchmark a `too_dense` kontrola.
-- `vite.config.js`: frontendový root, dev proxy a výstup buildu.
-- `composer.lock`, `package-lock.json`: přesné verze závislostí pro instalaci.
-- `.env.example`: veřejný vzor konfigurace; vlastní `.env` se necommituje.
-- `docs/`: schválený návrh, fáze implementace a stručný log.
-
-Mapa záměrně nepřidává parcelní cache, clustering, vector tiles, S2 index,
-background služby ani mutation endpointy.
-
-S větším časovým rozpočtem je první UX rozšíření vyhledávání / rychlá navigace
-podle katastrálního území: jednoduchý search/select z 240 KÚ a následné
-`fitBounds` na vybrané území. Aktuální verze ponechává KÚ výběr přímo v mapě;
-parcelní nebo fulltextové vyhledávání není součástí současného API.
-
-## Ověření
+Rychlé kontroly bez full importu:
 
 ```sh
 composer validate --strict
 composer lint
-composer verify:srs:test
-composer verify:crs
-composer verify:database
 composer verify:importer
-composer verify:importer-db
-composer verify:importer-publication
-composer verify:api
+composer verify:api-validation
 npm run test:frontend
 npm run build
-curl --fail http://127.0.0.1:8000/api
 ```
 
-Volitelný předodevzdávací `composer smoke:crs` porovná pět parcel / 145 bodů
-s aktuálním autoritativním ČÚZK WFS. Vyžaduje síť; běžná regresní sada
-`composer verify:crs` je deterministická a offline.
+Databázové integrační testy vyžadují samostatnou databázi s názvem končícím
+`_test`; nesmějí mířit na aplikační ani reálný importovaný snapshot. Kompletní
+test setup, DB verification, network smokes a všechny příkazy jsou v
+[Testing](docs/TESTING.md).
 
-Schválený plán je v [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md).
-Skutečný postup zachycuje [implementation log](docs/IMPLEMENTATION-LOG.md).
+Reprodukovatelný syntetický Leaflet benchmark a finální browser verification
+proběhly v **Google Chrome 152**. Nejde o obecný cross-browser claim ani o
+benchmark současného vykreslení všech reálných parcel. Podrobnosti jsou v
+[Performance](docs/PERFORMANCE.md).
 
-Historii uzavřené discovery fáze uchovává [docs/DISCOVERY.md](docs/DISCOVERY.md).
-Jde o historický záznam; finální architekturu a rozhodnutí určují příslušné dokumenty v `docs/`.
+## High-level architektura
+
+```text
+ČÚZK ZIP/GML -> PHP CLI importer -> MySQL 8.4 Spatial
+                                      |
+                                      v
+Leaflet frontend <- GeoJSON <- framework-free PHP API
+```
+
+Importer používá per-KÚ checkpointy, transakce, complete-dataset validaci a
+atomic publication. API čte pouze aktivní `ready` dataset. Geometrie zůstávají
+v nativním EPSG:5514; veřejné viewporty a vybrané výsledky používají ověřenou
+obousměrnou transformační cestu přes aplikační SRS `1005514`.
+
+Detailní architektura, API kontrakty a data model zůstávají v specializovaných
+dokumentech níže.
+
+## Dokumentace
+
+- [Production Notebook](docs/PRODUCTION-NOTEBOOK.md) — reasoning, klíčová
+  rozhodnutí, lessons learned a co bych řešila s více časem.
+- [Architecture](docs/ARCHITECTURE.md) — finální technická architektura a flow.
+- [API](docs/API.md) — endpointy, validace, errors a spatial query contract.
+- [Testing](docs/TESTING.md) — testovací prostředí, matrix a příkazy.
+- [Performance](docs/PERFORMANCE.md) — metodika, výsledky a jejich omezení.
+- [Data](docs/DATA.md) — ČÚZK data, import lifecycle, schema a metadata.
+- [Decisions](docs/DECISIONS.md) — hlubší technický decision record.
+- [Discovery](docs/DISCOVERY.md) — historický discovery/research záznam.
+- [Implementation Log](docs/IMPLEMENTATION-LOG.md) — chronologická historie
+  implementace a verifikace.
+
+Původní [implementation plan](docs/IMPLEMENTATION-PLAN.md) a jeho phase soubory
+jsou zachované jako historické plány, nikoli jako aktuální specifikace.

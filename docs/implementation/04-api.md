@@ -1,5 +1,11 @@
 # 04 — API
 
+> **Historical implementation plan.** Some phase boundaries and decisions
+> evolved during implementation. See the [README](../../README.md),
+> [Production Notebook](../PRODUCTION-NOTEBOOK.md),
+> [Architecture](../ARCHITECTURE.md) and
+> [Implementation Log](../IMPLEMENTATION-LOG.md) for the final/current state.
+
 ## Goal
 
 Implement the documented read-only API, including access rules, safe errors and

@@ -83,8 +83,10 @@ SRID 1005514 is used only on transient expressions to select the verified
 bidirectional transformation; relabelling does not alter coordinate values.
 Its exact server-global definition is provisioned separately and checked at
 API/import startup. No PROJ/GDAL process or library is required at runtime.
-Frontend padded maxBounds and a container-dependent overview minimum zoom keep
-navigation near Jičín; they do not restrict the backend's valid input locations.
+The frontend currently uses padded maxBounds and a container-dependent overview
+minimum zoom to constrain navigation around Jičín. The initial padding is a UX
+choice that may need further device-level tuning; it does not restrict the
+backend's valid input locations.
 
 ## Import consistency
 

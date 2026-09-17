@@ -1,5 +1,11 @@
 # 06 — Parcel layer and detail
 
+> **Historical implementation plan.** Some phase boundaries and decisions
+> evolved during implementation. See the [README](../../README.md),
+> [Production Notebook](../PRODUCTION-NOTEBOOK.md),
+> [Architecture](../ARCHITECTURE.md) and
+> [Implementation Log](../IMPLEMENTATION-LOG.md) for the final/current state.
+
 ## Goal
 
 Add zoom-gated parcel geometry, selection and responsive parcel detail UI.

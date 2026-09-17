@@ -2,13 +2,13 @@
 
 | Decision | Choice | Rationale | Revisit when |
 | --- | --- | --- | --- |
-| Scope | Whole Jičín district | Measured import is manageable: 240 KÚ / 272,861 parcels. | Scope or source volume changes. |
+| Scope | Whole Jičín district | Latest verified real-data E2E snapshot: 240 KÚ / 272,768 parcels. | Scope or source volume changes. |
 | Source lifecycle | ČÚZK predefined GML -> local snapshot | Reproducible demo; no runtime dependency on ČÚZK. | Live freshness becomes required. |
 | Database | Oracle MySQL Community Server 8.4 LTS Spatial | Required spatial functions and CRS conversion on a currently supported stable LTS line, aligned with the Viagem stack. | Benchmarks need topology-safe generalisation or advanced GIS work, or the next LTS is evaluated. |
 | CRS | Native 5514; API 4326 | Keeps source/local metric geometry; transforms only selected output. | New source uses different native CRS. |
 | Delivery | Viewport GeoJSON | Lowest complexity with capped payload. | Benchmarks fail after limits and optimisation. |
 | Low zoom | KÚ boundaries, optional name/count tooltip | Authoritative 240-feature LOD; keeps focus on parcel polygons and avoids an extra clustering/aggregation model. | Benchmark/UX shows it does not prevent ordinary `too_dense`. |
-| Parcel request threshold | Start at Leaflet zoom 17, then check actual result count | Zoom is a cheap first filter; only a capped response activates parcels, otherwise KÚ remains visible. Initial 2,000-feature ceiling is an unmeasured guardrail, not a render target. | Viewport/device benchmark, geometry complexity and payload results. |
+| Parcel request threshold | Start at Leaflet zoom 17, then check actual result count | Zoom is a cheap first filter; only a capped response activates parcels, otherwise KÚ remains visible. The 2,000-feature ceiling is verified on synthetic fixtures as a safety guard, not established as a real-geometry render target. | Viewport/device benchmark, geometry complexity and payload results. |
 | Map requests | `moveend` + 150 ms debounce + abort/generation guard | No requests during dragging; prevents stale response races without a cache layer. | Measurement shows repeated identical viewport work matters. |
 | Detail delivery | Viewport `id` + label; metadata-only detail request | Draw/select data travel once with minimal payload; click fetches source-backed area/reference/KÚ metadata and handles snapshot changes via 404. | Detail grows enough to justify including it in viewport payload. |
 | Map-first UI | Full map, KÚ fit-to-bounds shortcut, contextual detail | Keeps the assignment focused on finding and inspecting a parcel; avoids dashboard/search workflow the API does not support. | With more time, add a simple KÚ search/select over the committed 240 territories and call `fitBounds`; manual navigation alone is a confirmed UX limitation. |

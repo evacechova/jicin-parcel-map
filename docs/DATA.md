@@ -6,12 +6,23 @@
 cadastral territory (KÚ), available in EPSG:5514. ČÚZK creates a new dataset
 daily only when that KÚ changes.
 
-Measured Jičín district snapshot (14 September 2026):
+The discovery measurement from 14 September 2026 contained:
 
 - 240 KÚ;
 - 272,861 parcels;
 - 117.76 MiB ZIP input;
 - 3.02 GiB uncompressed XML.
+
+The latest verified real-data E2E snapshot from 17 September 2026 contains:
+
+- 240 KÚ;
+- 272,768 parcels;
+- 123,477,457 B (117.757 MiB) of downloaded ZIP input;
+- an active `ready` dataset with `validation_report.valid = true`.
+
+ČÚZK publishes changing source snapshots, so parcel totals are observations,
+not a hard-coded import invariant. The importer instead validates the exact
+configured KÚ set and internal persisted/checkpoint counts.
 
 The importer processes one ZIP/GML at a time. It must not extract the whole
 district or construct a DOM for a complete GML in memory.
@@ -30,8 +41,14 @@ base CP source and are not represented by the application.
 
 - Native storage CRS: EPSG:5514.
 - API display CRS: EPSG:4326.
-- BBOX filtering occurs in native CRS. Only selected features are transformed
-  to 4326.
+- Server-global application SRS `1005514` selects the verified bidirectional
+  transformation based on EPSG operation 5239. Its exact definition is
+  provisioned from `database/spatial-reference/1005514.sql` and verified by the
+  API and importer before spatial work.
+- Public BBOX input is transformed 4326 -> 1005514 and transiently relabelled
+  as storage 5514. BBOX filtering then occurs against the indexed native
+  column. Only selected storage geometries are transiently relabelled as
+  1005514 and transformed to 4326.
 - API query geometry uses the conservative densified-boundary/native-envelope
   contract in API.md. Its outward margin is a correctness requirement;
   `ST_Intersects` is exact against that envelope, not the original viewport.
@@ -44,7 +61,7 @@ mixed geometry values.
 ## Import strategy
 
 1. Read the committed Jičín scope configuration and create an importing dataset version.
-2. Stream each ZIP/GML into staging in batches.
+2. Stream each ZIP/GML into inactive snapshot tables with prepared row inserts.
 3. Validate source and KÚ identity, unique parcel IDs, SRID, non-empty
    geometries and counts.
 4. Keep the spatial indexes while loading the inactive snapshot (they also
@@ -55,8 +72,8 @@ mixed geometry values.
 
 ## Validated storage model
 
-The following model was checked against the current Jičín CP ZIP/GML snapshot
-and MySQL 8 documentation. It is a design contract, not implemented schema.
+The following model is implemented by the versioned migrations and checked by
+the MySQL integration verification scripts.
 
 ### Snapshot and import tables
 
@@ -129,11 +146,13 @@ does not provide the required leftmost `dataset_id` index order.
 
 ### GML evidence and normalisation
 
-In all 240 downloaded Jičín ZIPs, the importer observed 272,861
-`CadastralParcel` feature starts and 240 `CadastralZoning` starts. Both sets of
-feature `gml:id` values were unique within the snapshot. Parcel examples use
-`CP.<number>` and territory examples use `CZ.<KU code>`; the importer stores
-the `base:Identifier/base:localId` value, not a guessed parsed number.
+During the 14 September discovery inspection of all 240 Jičín ZIPs, the parser
+observed 272,861 `CadastralParcel` feature starts and 240 `CadastralZoning`
+starts. The later verified import contained 272,768 parcels. Both measurements
+support the same source-shape and identity decisions while demonstrating why
+the parcel total is not an invariant. Parcel examples use `CP.<number>` and
+territory examples use `CZ.<KU code>`; the importer stores the
+`base:Identifier/base:localId` value, not a guessed parsed number.
 
 The parcel feature actually contains `cp:areaValue`,
 `cp:beginLifespanVersion`, `cp:geometry`, `cp:inspireId`, `cp:label`,
@@ -162,7 +181,7 @@ future source-version comparison, but is not a current API/UI field. `areaValue`
 is supplied with `uom=\"m2\"` and is stored as source area, not recomputed from
 geometry.
 
-### Activation and rollback
+### Activation and retention
 
 Import rows are logical staging because their `dataset_id` is not pointed to by
 `active_dataset`. After all KÚ and validations pass, one short transaction
@@ -170,25 +189,29 @@ marks the dataset `ready` and updates the single active pointer. API first
 resolves an active dataset joined to `dataset.status = 'ready'`. Thus an
 `importing` dataset is unqueryable even if an application bug supplied its ID.
 Global auto-increment IDs are safe across snapshots; gaps are irrelevant and
-the range is far beyond this dataset size. The prior dataset is retired and retained
-for rollback and must not be purged while it is active or needed by in-flight
-requests.
+the range is far beyond this dataset size. The prior dataset is marked
+`retired` and remains persisted unless an explicit, separately designed cleanup
+is performed. The implementation does not expose an automated dataset rollback
+or retention/purge command.
 
 Take-home scope is a documented manual full refresh. Production may poll the
 manifest daily and stage only changed KÚ using the same atomicity rule.
 
-### MySQL-specific preflight before implementation
+### MySQL-specific preflight and application SRS
 
 The supported server is Oracle MySQL Community Server 8.4 LTS. The original
-8.0.32 minimum identified when the required projection support first became
-available is no longer the project target. The implementation must nevertheless
-run one small database preflight before importing the district: confirm that
-SRIDs 5514 and 4326 are present in
-`INFORMATION_SCHEMA.ST_SPATIAL_REFERENCE_SYSTEMS`, that a known EPSG:5514 point
-transforms to 4326, and that the resulting `ST_AsGeoJSON()` coordinates are
-`[longitude, latitude]` as required by GeoJSON/Leaflet. This is an integration
-assertion about MySQL's axis-order handling, not a reason to transform every
-imported feature in advance.
+8.0.32 minimum identified during discovery is no longer the project target.
+Before migration/import, an administrator provisions application SRS `1005514`
+once at server level. The SQL deliberately uses `CREATE SPATIAL REFERENCE
+SYSTEM` without `OR REPLACE`; an existing definition must be verified, never
+silently overwritten.
+
+`composer verify:srs` and the runtime preflight compare the SRS name,
+description and exact definition checksum. The spatial verification also checks
+the bidirectional 5514/1005514/4326 path, axis order and GeoJSON
+`[longitude, latitude]` output. MySQL's built-in 5514 transformation path is not
+used for public coordinates because authoritative ČÚZK comparison exposed its
+multi-metre systematic offset. Stored geometries remain unchanged in SRID 5514.
 
 ## Full-refresh import design
 
@@ -212,12 +235,12 @@ php bin/import-cadastral.php --scope=jicin
 ```
 
 It creates a new complete snapshot; it never updates the active snapshot in
-place. The only optional take-home switches are `--keep-artifacts` for
-debugging and `--source-dir=PATH` for a previously downloaded local set of
-ZIPs. The user does not supply an arbitrary URL, CRS, SQL fragment, parcel
-limit or a subset of KÚ. This keeps the run reproducible and the importer
-contract small. A scheduler, free-form scope selection and incremental mode
-are production extensions.
+place. The only optional switch is `--keep-artifacts` for retaining the
+run-specific ZIPs after a successful import. The user does not supply an
+arbitrary source directory, URL, CRS, SQL fragment, parcel limit or subset of
+KÚ. This keeps the run reproducible and the importer contract small. A
+scheduler, free-form scope selection and incremental mode are production
+extensions.
 
 ### Source artifacts and bounded memory
 
@@ -258,12 +281,10 @@ generated `territory_id`, but buffering a potentially large set of parcels
 until a territory happens to appear would defeat streaming. Re-reading one ZIP
 is a modest I/O cost in exchange for a simpler and safer importer.
 
-The importer prepares SQL once and retains at most a modest batch (for example
-250 parcel parameter sets) before executing it; the outer transaction is still
-one KÚ, not one full district. This limits memory and makes a bad KÚ fully
-rollbackable. If ordinary prepared-row execution is already fast enough, it is
-preferred over a more complex generated multi-value statement; batching is an
-implementation optimisation to measure, not a correctness dependency.
+The importer prepares its insert statements once and executes one bounded
+parcel row at a time while the XML reader advances. The outer transaction is
+one KÚ, not one row or one full district. This keeps memory bounded and makes a
+bad KÚ fully rollbackable without an implemented multi-row batching contract.
 
 The shared `parcel` and `cadastral_territory` tables keep their spatial indexes
 throughout the import because they are also serving the active dataset. This
@@ -327,7 +348,7 @@ adds more state than it saves for a one-off local import. A manual cleanup of a
 stale `importing`/`failed` run is sufficient. Production could add a run lock,
 resumable download cache and a source-manifest version token.
 
-### Dataset validation, activation and rollback
+### Dataset validation and atomic publication
 
 Before publication, the importer validates all of the following against the
 new `dataset_id`:
@@ -354,9 +375,9 @@ new dataset from `importing` to `ready`, points `active_dataset` at it and
 changes the former active dataset to `retired`. API resolves the pointer only
 through `dataset.status='ready'`, so it observes either the old complete
 snapshot or the new complete snapshot. The prior retired snapshot is retained
-as the single rollback candidate. Rollback is the inverse short transaction:
-point back to it, restore it to `ready` and retire the unsuccessful current
-snapshot. Retention/purging beyond one rollback snapshot is production policy.
+in the database. The schema and pointer model can support a controlled inverse
+switch, but the current public CLI does not expose a dataset rollback or
+automatic retention/purge workflow.
 
 ### Assignment boundary
 
@@ -368,6 +389,10 @@ storage, alerting or long-term source archival.
 
 ## Reproducibility
 
-Dataset metadata records source URL, timestamp, CRS, KÚ/parcel counts and
-validation result. ZIP/GML and database dumps are local working files, never
+Dataset metadata records source URL, `created_at`, `completed_at`, CRS,
+KÚ/parcel counts and the validation result. `active_dataset.activated_at`
+records publication time. Each `import_territory` checkpoint stores its source
+URL, checksum, size, `retrieved_at`, last attempt and parcel count. These fields
+can support a future user-facing freshness summary, but the current API/UI does
+not expose one. ZIP/GML and database dumps are local working files, never
 committed to Git.

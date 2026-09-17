@@ -12,14 +12,20 @@
 does not mean that 2,000 parcels, or any fixed number of parcels, is smooth to
 draw: geometry vertex count and payload size can dominate the result.
 
-## Benchmark scenarios
+## Planned benchmark matrix
+
+The list below records the intended wider measurement matrix. The executed
+submission evidence is narrower and is reported separately in the dated result
+sections: MySQL synthetic fixtures, a synthetic Leaflet run in Google Chrome
+152, and real-data correctness E2E. Firefox and a wider physical-device matrix
+were not part of the final executed verification.
 
 - Dense urban Jičín viewport;
 - sparse rural viewport;
 - viewport crossing KÚ boundaries;
 - viewport just under parcel limit;
 - intentionally too-dense viewport;
-- repeated pan/zoom in Chrome and Firefox.
+- repeated pan/zoom across representative modern browsers;
 - the same dense viewport at zoom 16, 17 and 18, including whether a safe
   parcel overlay is returned or the API selects its KÚ fallback guardrail.
 
@@ -75,7 +81,9 @@ GeoJSON remains if realistic requests meet interaction targets across the
 viewport/device matrix without visible lag. Consider a different rendering or
 delivery approach (including vector tiles) only after measurement proves the
 simple GeoJSON path fails despite SQL, payload and rendering optimisation.
-## Phase 04 backend fixture results (2026-09-16)
+## Executed measurements
+
+### Phase 04 backend fixture results (2026-09-16)
 
 The imported 272,768-parcel Jičín snapshot was not available in the running
 local database during Phase 04 verification. A reproducible MySQL 8.4.11
@@ -99,7 +107,7 @@ simplification or vector-tile mechanism is justified by this backend fixture;
 repeat the benchmark against the real full snapshot before making production
 capacity claims.
 
-## Phase 05 browser fixture results (2026-09-17)
+### Phase 05 Chrome browser fixture results (2026-09-17)
 
 The full 272,768-parcel snapshot was still not available in a running local
 database. Browser measurements therefore used a reproducible MySQL 8.4.11
@@ -134,7 +142,7 @@ devices, Firefox/Safari, gzip transfer, or repeated long-session memory. The
 real imported snapshot and wider device/browser matrix remain required before
 changing the provisional zoom threshold or claiming production capacity.
 
-## Post-fix CRS regression check (2026-09-17)
+### Post-fix CRS regression check (2026-09-17)
 
 The corrected bidirectional transformation was benchmarked on the same
 isolated MySQL 8.4 test setup after the application SRS was provisioned. The
@@ -170,3 +178,15 @@ through the public HTTP API. All 145 authoritative control vertices from five
 parcels were found with mean 0.138 m, p95 0.204 m and maximum 0.222 m distance
 from the paired ČÚZK WFS EPSG:4326 coordinates. This is a correctness result,
 not an OSM-based benchmark.
+
+### Latest real-data import reference (2026-09-17)
+
+The latest protected local E2E dataset recorded 240 KÚ and 272,768 parcels.
+Its persisted `dataset.created_at` to `dataset.completed_at` lifecycle was
+168.643 seconds, approximately 2 minutes 49 seconds. This is one local
+reference measurement, not a duration guarantee; hardware, network conditions,
+ČÚZK availability and source changes can alter full-import time.
+
+This import measurement establishes reproducibility of the whole-district data
+pipeline. It does not replace the synthetic API/browser measurements or claim
+that all real parcel geometries are rendered simultaneously.

@@ -1,5 +1,11 @@
 # Implementation plan
 
+> **Historical implementation plan.** This document records the plan created
+> during development; some phase boundaries and decisions evolved during
+> implementation. See the [README](../README.md),
+> [Production Notebook](PRODUCTION-NOTEBOOK.md), [Architecture](ARCHITECTURE.md)
+> and [Implementation Log](IMPLEMENTATION-LOG.md) for the final/current state.
+
 Implementation is intentionally phased. A phase is complete only when its
 verification criteria pass and its result is recorded in
 `IMPLEMENTATION-LOG.md` once actual implementation starts.
