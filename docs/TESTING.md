@@ -61,7 +61,8 @@ integration tests.
 
 ### Database/spatial integration tests
 
-Run against supported real MySQL after migrations in `viagem_test`. Seed two
+Run against supported real MySQL after provisioning and verifying application
+SRS `1005514`, then applying migrations in `viagem_test`. Seed two
 datasets and a few named EPSG:5514 polygons: inside, outside and a shape whose
 MBR overlaps a viewport while its actual polygon does not.
 
@@ -74,8 +75,9 @@ Required assertions:
   deletion is restricted. Checkpoint retries update the existing unique row.
 - `MBRIntersects` + `ST_Intersects` returns inside, excludes outside and excludes
   the MBR-only false positive.
-- Stored SRID is 5514; `ST_Transform(5514,4326)` succeeds; returned GeoJSON is
-  `[longitude, latitude]` within a small tolerance.
+- Stored SRID is 5514; transient 5514 -> 1005514 relabelling followed by
+  `ST_Transform(...,4326)` succeeds; returned GeoJSON is
+  `[longitude, latitude]` within the authoritative tolerance.
 - Active-pointer query exposes only dataset A, then only dataset B after a
   pointer switch; importing/inactive rows never appear.
 - S2 boundary fixtures: place parcels crossing each of the four true viewport
@@ -99,6 +101,31 @@ Required assertions:
 
 This is the correctness form of the spatial preflight. It is not `EXPLAIN
 ANALYZE` or a latency test; those belong to benchmarks.
+
+### CRS regression and live authority check
+
+`composer verify:crs` is the mandatory offline regression. Its checked-in
+fixture contains 145 paired EPSG:5514 / EPSG:4326 vertices from five real
+parcels in different parts of Jičín district, together with INSPIRE IDs, KÚ
+codes and `beginLifespanVersion`. ČÚZK WFS is the authority; OSM is explicitly
+not a coordinate reference. The test checks both directions and rejects:
+
+- forward or reverse maximum error above 0.50 m;
+- the magnitude of the mean east/north error vector above 0.25 m;
+- native -> public -> native round-trip error above 0.01 m.
+
+These gates follow the measured 0.22–0.24 m maximum of the selected standard
+operation and are tight enough to catch the former multi-metre systematic
+offset. EPSG's declared operation accuracy is 1.0 m; the sample result does not
+override that specification or claim survey-grade precision.
+`composer verify:srs:test` separately checks the exact provisioned SRS identity
+before the regression runs.
+
+`composer smoke:crs` is a one-time/pre-release online check, not part of the
+deterministic suite. It refetches exactly those five parcels in both CRSs from
+the current ČÚZK WFS and requires the same 145 coordinates and unchanged
+lifespan versions; a source update asks for fixture review instead of silently
+rewriting expected values.
 
 ### API integration/contract tests
 
@@ -176,7 +203,10 @@ are more valuable as unit/manual checks than many browser scripts.
 - Unit/parser: checked-in small XML/GML/ZIP fixtures; no live ČÚZK/internet.
 - Spatial/API: migrations plus deterministic seed with a few 5514 polygons,
   two datasets and explicit active pointer.
-- E2E: same seeded local API data; intercepted/stubbed basemap tiles.
+- Automated E2E: same seeded isolated `*_test` API data; intercepted/stubbed
+  basemap tiles.
+- Final manual E2E may use the protected local `viagem_e2e` real ČÚZK snapshot;
+  automated tests must never reset, seed or clean it.
 - Benchmark: separate local full Jičín snapshot; never required for correctness.
 
 ## Explicitly not tested
@@ -193,5 +223,4 @@ production.
 
 ## Open implementation confirmations
 
-- Confirm the target local MySQL supports the preflight in the test schema.
 - Keep route-handler/service separation testable without adding a framework.

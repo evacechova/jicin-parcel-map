@@ -75,11 +75,14 @@ try {
         INSERT INTO cadastral_territory (dataset_id, ku_code, name, inspire_id, geom_native)
         VALUES (
             :dataset_id, '999999', 'Benchmark territory', 'CZ.BENCHMARK.TERRITORY',
-            ST_Transform(
-                ST_GeomFromText(
-                    'MULTIPOLYGON(((15.20 50.30,15.44 50.30,15.44 50.44,15.20 50.44,15.20 50.30)))',
-                    4326,
-                    'axis-order=long-lat'
+            ST_SRID(
+                ST_Transform(
+                    ST_GeomFromText(
+                        'MULTIPOLYGON(((15.20 50.30,15.44 50.30,15.44 50.44,15.20 50.44,15.20 50.30)))',
+                        4326,
+                        'axis-order=long-lat'
+                    ),
+                    1005514
                 ),
                 5514
             )
@@ -102,8 +105,11 @@ try {
             national_cadastral_reference, area_m2, geom_native
         ) VALUES (
             :dataset_id, :territory_id, :inspire_id, :label, :national_reference, 400,
-            ST_Transform(
-                ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+            ST_SRID(
+                ST_Transform(
+                    ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+                    1005514
+                ),
                 5514
             )
         )

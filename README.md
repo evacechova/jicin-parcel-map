@@ -24,6 +24,21 @@ Nastavení platí pouze pro daný terminál; nemění globální konfiguraci she
 
 ## Databáze
 
+MySQL musí mít jednorázově, na úrovni serveru, zaregistrovanou aplikační
+transformační definici `SRID 1005514`. Na fresh MySQL 8.4 ji nainstaluj jako
+databázový administrátor ještě před migrací/importem:
+
+```sh
+mysql --user=root --password < database/spatial-reference/1005514.sql
+```
+
+SQL záměrně používá prosté `CREATE SPATIAL REFERENCE SYSTEM`, nikoli
+`OR REPLACE`: existující definici nikdy tiše nepřepíše. Pokud `1005514` už na
+serveru existuje, nejprve spusť `composer verify:srs`; chybějící nebo obsahově
+odlišná definice je blokující chyba s očekávaným SHA-256. Běžný aplikační účet
+nepotřebuje oprávnění definici vytvářet. Pro testovací připojení použij
+`composer verify:srs:test`.
+
 Migrace jsou verzované změny databázového schématu. Migrátor eviduje použité
 verze v tabulce `schema_migration`, opakované spuštění je bezpečný no-op a
 poslední krok lze vrátit pro lokální ověření.
@@ -47,6 +62,10 @@ výhradně `TEST_DB_*`. Testové příkazy odmítnou databázi, jejíž název n
 `_test`, i konfiguraci shodnou s `DB_NAME`.
 
 ```sh
+composer install
+composer verify:srs
+composer verify:srs:test
+
 php bin/database.php status
 php bin/database.php migrate
 php bin/database.php rollback
@@ -64,8 +83,6 @@ běžném sdíleném prostředí se již použité migrace neupravují; přidáv
 Z kořene projektu:
 
 ```sh
-composer install
-cp .env.example .env
 composer dev
 ```
 
@@ -82,7 +99,9 @@ proměnných nikdy nepatří secrets, protože se dostávají do prohlížeče.
 
 API používá prefix `/api/v1`, standardní GeoJSON v EPSG:4326 a čte výhradně
 dataset vybraný `active_dataset.slot = 1`, pokud má současně stav `ready`.
-Geometrie v databázi zůstávají v EPSG:5514.
+Geometrie v databázi zůstávají v EPSG:5514. Veřejné souřadnice se obousměrně
+převádějí přes ověřenou aplikační definici `1005514`; uložené geometrie se jen
+pro výpočet přeznačí a žádná datová migrace ani reimport nejsou potřeba.
 
 ```sh
 curl --get 'http://127.0.0.1:8000/api/v1/cadastral-territories' \
@@ -113,6 +132,8 @@ chráněnou MySQL 8.4 `*_test` databázi z `TEST_DB_*`:
 
 ```sh
 composer verify:api-validation
+composer verify:srs:test
+composer verify:crs
 composer verify:api
 composer benchmark:api
 ```
@@ -230,6 +251,8 @@ pokus vytvoří nový dataset a stáhne všech 240 KÚ znovu.
 - `app/Import/Database/`: dataset/checkpoint lifecycle a transakční zápis jednoho KÚ.
 - `config/scopes/jicin.csv`: pevný verzovaný seznam 240 KÚ okresu Jičín.
 - `database/migrations/`: vzestupné a vratné SQL migrace.
+- `database/spatial-reference/1005514.sql`: jednorázový serverový provisioning
+  ověřené obousměrné S-JTSK/WGS 84 transformační cesty.
 - `bin/database.php`: stav, aplikace a vrácení migrací.
 - `bin/import-cadastral.php`: full import, validace a atomická aktivace snapshotu.
 - `frontend/`: Leaflet map view, API klient, request koordinátory, detail a styl.
@@ -244,11 +267,18 @@ pokus vytvoří nový dataset a stáhne všech 240 KÚ znovu.
 Mapa záměrně nepřidává parcelní cache, clustering, vector tiles, S2 index,
 background služby ani mutation endpointy.
 
+S větším časovým rozpočtem je první UX rozšíření vyhledávání / rychlá navigace
+podle katastrálního území: jednoduchý search/select z 240 KÚ a následné
+`fitBounds` na vybrané území. Aktuální verze ponechává KÚ výběr přímo v mapě;
+parcelní nebo fulltextové vyhledávání není součástí současného API.
+
 ## Ověření
 
 ```sh
 composer validate --strict
 composer lint
+composer verify:srs:test
+composer verify:crs
 composer verify:database
 composer verify:importer
 composer verify:importer-db
@@ -258,6 +288,10 @@ npm run test:frontend
 npm run build
 curl --fail http://127.0.0.1:8000/api
 ```
+
+Volitelný předodevzdávací `composer smoke:crs` porovná pět parcel / 145 bodů
+s aktuálním autoritativním ČÚZK WFS. Vyžaduje síť; běžná regresní sada
+`composer verify:crs` je deterministická a offline.
 
 Schválený plán je v [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md).
 Skutečný postup zachycuje [implementation log](docs/IMPLEMENTATION-LOG.md).

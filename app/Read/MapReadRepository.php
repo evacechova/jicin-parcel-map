@@ -35,7 +35,10 @@ final readonly class MapReadRepository
                 territory.ku_code,
                 territory.name,
                 checkpoint.parcel_count,
-                ST_AsGeoJSON(ST_Transform(territory.geom_native, 4326), 8) AS geometry_json
+                ST_AsGeoJSON(
+                    ST_Transform(ST_SRID(territory.geom_native, 1005514), 4326),
+                    8
+                ) AS geometry_json
             FROM cadastral_territory AS territory FORCE INDEX (sp_cadastral_territory_geom_native)
             STRAIGHT_JOIN active_dataset AS active
                 ON active.slot = 1
@@ -75,7 +78,10 @@ final readonly class MapReadRepository
             SELECT
                 parcel.inspire_id,
                 parcel.label,
-                ST_AsGeoJSON(ST_Transform(parcel.geom_native, 4326), 8) AS geometry_json
+                ST_AsGeoJSON(
+                    ST_Transform(ST_SRID(parcel.geom_native, 1005514), 4326),
+                    8
+                ) AS geometry_json
             FROM parcel FORCE INDEX (sp_parcel_geom_native)
             STRAIGHT_JOIN active_dataset AS active
                 ON active.slot = 1

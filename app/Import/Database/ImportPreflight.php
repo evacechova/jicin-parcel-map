@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Import\Database;
 
+use App\Geo\CadastralCrs;
 use App\Import\ImportException;
 use PDO;
 
@@ -23,10 +24,15 @@ final class ImportPreflight
         $srids = (int) $this->pdo->query(<<<'SQL'
             SELECT COUNT(*)
             FROM INFORMATION_SCHEMA.ST_SPATIAL_REFERENCE_SYSTEMS
-            WHERE SRS_ID IN (5514, 4326)
+            WHERE SRS_ID IN (5514, 4326, 1005514)
             SQL)->fetchColumn();
-        if ($srids !== 2) {
-            throw new ImportException('spatial_preflight_failed', 'Required SRIDs 5514 and 4326 are not registered.');
+        if ($srids !== 3) {
+            throw new ImportException('spatial_preflight_failed', 'Required SRIDs 5514, 4326 and 1005514 are not registered.');
+        }
+        try {
+            CadastralCrs::verify($this->pdo);
+        } catch (\RuntimeException $exception) {
+            throw new ImportException('spatial_preflight_failed', $exception->getMessage());
         }
 
         $point = $this->pdo->query(<<<'SQL'
@@ -34,10 +40,13 @@ final class ImportPreflight
                    ST_Latitude(transformed) AS latitude
             FROM (
                 SELECT ST_Transform(
-                    ST_GeomFromText(
-                        'POINT(-671984.1403374915 -1013081.1797817094)',
-                        5514,
-                        'axis-order=srid-defined'
+                    ST_SRID(
+                        ST_GeomFromText(
+                            'POINT(-647087.71 -1027689.06)',
+                            5514,
+                            'axis-order=srid-defined'
+                        ),
+                        1005514
                     ),
                     4326
                 ) AS transformed
@@ -45,10 +54,10 @@ final class ImportPreflight
             SQL)->fetch();
         if (
             $point === false
-            || abs((float) $point['longitude'] - 15.3516) > 0.00001
-            || abs((float) $point['latitude'] - 50.4372) > 0.00001
+            || abs((float) $point['longitude'] - 15.723937) > 0.000005
+            || abs((float) $point['latitude'] - 50.334021) > 0.000005
         ) {
-            throw new ImportException('spatial_preflight_failed', 'EPSG:5514 to EPSG:4326 transform or axis order is unexpected.');
+            throw new ImportException('spatial_preflight_failed', 'Application SRS 1005514 transform or axis order is unexpected.');
         }
     }
 }

@@ -347,3 +347,47 @@
   (`verify:database`, `verify:importer-db`, `verify:importer-publication`,
   `verify:api`), 14 Vitest testů, produkční Vite build, browser benchmark a
   `npm audit` s nulovým počtem známých zranitelností.
+
+## Phase 05 blocker fix — authoritative CRS path (2026-09-17)
+
+- Manuální E2E odhalilo systematický nesoulad parcel proti podkladu. Následná
+  diagnostika oddělila OSM od autority: všech 145 nativních vrcholů pěti parcel
+  ze vzdálených částí okresu se s aktuálním ČÚZK WFS shodovalo přesně, ale
+  vestavěná MySQL definice 5514 vytvářela přibližně +6–7 m východní a
+  +2,5–3,9 m severní posun. Zdrojová data ani Phase 03 import nebyly chybné.
+  Syntetické geometrie ověřily pořadí os a interní konzistenci, ale bez
+  autoritativních párových souřadnic tento geodetický posun odhalit nemohly.
+- V oddělené `viagem_test` instanci byla před produkční změnou ověřena
+  aplikační SRS `1005514`: WKT1 position-vector ekvivalent EPSG coordinate-frame
+  operace 5239 s úplnou Krovakovou projekční definicí. Literal coordinate-frame
+  znaménka ve WKT1 byla odmítnuta po ~40m chybě; schválená konvenčně ekvivalentní
+  definice prošla 145 body s forward max 0,222290 m, reverse max 0,221179 m,
+  systematic vector 0,129636 m a round-trip max 0,001341 m.
+  EPSG pro operaci deklaruje přesnost 1,0 m a použití pro střední/nižší nároky;
+  lepší výsledek tohoto omezeného vzorku není centimetrový ani zeměměřický slib.
+- `database/spatial-reference/1005514.sql` je explicitní jednorázový serverový
+  provisioning bez `OR REPLACE`. `CadastralCrs` drží kanonický název, popis,
+  definici a checksum a API i import fail-fast odmítnou chybějící nebo jinou
+  definici. Fresh clone ji instaluje administrátorským účtem; běžný runtime účet
+  ji pouze používá. Composer ani npm/system dependency se nezměnily a nebyl
+  přidán PROJ/GDAL runtime.
+- Veřejný BBOX jde 4326 -> 1005514 -> transientní relabel 5514 -> zachovaný
+  25m native envelope -> existující spatial index. Vybraná stored 5514 geometrie
+  jde transientně 1005514 -> 4326 -> GeoJSON. Stejná cesta je také v dataset
+  containment validaci. Uložené geometrie, schéma, API contract, limit+1,
+  `too_dense`, query plan a spatial index zůstaly beze změny; migrace ani
+  reimport nebyly potřeba.
+- Offline fixture uchovává INSPIRE ID, KÚ, lifespan a 145 spárovaných bodů z
+  autoritativního ČÚZK WFS. `verify:crs` v obou směrech hlídá max 0,50 m,
+  systematický vektor 0,25 m a round-trip 0,01 m. `smoke:crs` jednorázově ověřil
+  stejných pět aktuálních WFS features, 145 bodů a nezměněné lifespan verze;
+  OSM není považováno za referenci.
+- Post-fix API benchmark zachoval spatial index: small 3,224/3,764 ms, medium
+  49,880/50,076 ms a `too_dense` 198,034/215,816 ms p50/p95. Browser fixture
+  znovu prošla bez long tasks a se správným 240-KÚ fallbackem. Na chráněném
+  reálném `viagem_e2e` snapshotu zůstalo dataset ID 1 `ready`, 240 KÚ a 272 768
+  validních SRID-5514 parcel beze změny; veřejné HTTP geometrie měly proti
+  stejným 145 ČÚZK bodům mean 0,138 m, p95 0,204 m a max 0,222 m.
+- Rollback je aplikační revert transform callsites. Serverovou SRS lze ponechat
+  neaktivní; její odstranění není součást rollbacku ani automatického cleanupu.
+  Chráněný E2E datadir/databáze nebyly resetovány, reimportovány ani měněny.

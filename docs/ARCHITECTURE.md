@@ -19,8 +19,8 @@ PHP CLI importer -> MySQL 8.4 LTS Spatial -> PHP API -> Leaflet frontend
 | Component | Responsibility |
 | --- | --- |
 | PHP CLI importer | Downloads, streams and validates GML one KÚ at a time; builds staging data. |
-| MySQL Spatial | Stores native EPSG:5514 geometry, metadata and the active dataset pointer. |
-| PHP API | Validates requests, runs indexed BBOX queries, transforms selected geometry to 4326 and returns JSON. |
+| MySQL Spatial | Stores native EPSG:5514 geometry, metadata, active dataset pointer and the verified application SRS 1005514. |
+| PHP API | Validates requests, uses SRS 1005514 for both transform directions, runs indexed BBOX queries and returns 4326 JSON. |
 | Frontend | Leaflet map, zoom-aware layers, request cancellation and parcel detail UI. |
 | ČÚZK | Authoritative source during import only. |
 
@@ -39,7 +39,7 @@ retain KÚ; no request                  GET /parcels
                                            |
                          intersect BBOX with D; disjoint -> empty
                                            |
-                         densify edges -> transform samples to 5514
+                         densify edges -> 4326 to 1005514 -> relabel 5514
                                            |
                          native envelope + verified outward error margin
                                            |
@@ -47,7 +47,7 @@ retain KÚ; no request                  GET /parcels
 MySQL SPATIAL INDEX -> MBRIntersects -> ST_Intersects -> LIMIT + 1
           |
           v
-selected geometry only -> 4326 -> GeoJSON -> Leaflet layer
+selected geometry only -> relabel 1005514 -> 4326 -> GeoJSON -> Leaflet layer
                                              |
                                  polygon click / inspireId
                                              v
@@ -79,6 +79,10 @@ The native query envelope conservatively covers the relevant viewport.
 to that envelope, not the original 4326 rectangle. Step/margin correctness and
 MySQL support are implementation-time verification as specified in API.md.
 The indexed geometry remains in 5514 and is never transformed in the predicate.
+SRID 1005514 is used only on transient expressions to select the verified
+bidirectional transformation; relabelling does not alter coordinate values.
+Its exact server-global definition is provisioned separately and checked at
+API/import startup. No PROJ/GDAL process or library is required at runtime.
 Frontend padded maxBounds and a container-dependent overview minimum zoom keep
 navigation near Jičín; they do not restrict the backend's valid input locations.
 
@@ -93,7 +97,7 @@ extension outside this implementation; the current contract is manual full refre
 
 - PHP is the backend runtime.
 - Oracle MySQL Community Server 8.4 LTS is the supported database target for
-  the EPSG:5514 -> EPSG:4326 transform and spatial storage.
+  native EPSG:5514 storage and the verified 1005514 <-> EPSG:4326 operation.
 - The frontend uses Vite, vanilla JavaScript and Leaflet.
 - Docker, Redis, a queue, vector-tile infrastructure and live ČÚZK runtime
   calls are outside the first version.

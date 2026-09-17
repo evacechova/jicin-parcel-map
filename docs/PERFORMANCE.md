@@ -133,3 +133,40 @@ validate the real snapshot's geometry-complexity distribution, weaker physical
 devices, Firefox/Safari, gzip transfer, or repeated long-session memory. The
 real imported snapshot and wider device/browser matrix remain required before
 changing the provisional zoom threshold or claiming production capacity.
+
+## Post-fix CRS regression check (2026-09-17)
+
+The corrected bidirectional transformation was benchmarked on the same
+isolated MySQL 8.4 test setup after the application SRS was provisioned. The
+fixture is regenerated through the corrected 4326 -> 1005514 -> storage-5514
+path, so the medium candidate count and JSON byte totals are not expected to be
+bit-for-bit identical to the earlier inaccurate transform.
+
+| API scenario | Before p50 / p95 | After p50 / p95 | After result / bytes | Index |
+| --- | ---: | ---: | ---: | --- |
+| Small | 2.862 / 3.831 ms | 3.224 / 3.764 ms | 90 / 21,230 B | yes |
+| Medium | 44.146 / 44.663 ms | 49.880 / 50.076 ms | 1,547 / 364,465 B | yes |
+| Deliberately too dense | 189.410 / 192.908 ms | 198.034 / 215.816 ms | 409 / 123 B | yes |
+
+`EXPLAIN ANALYZE` continued to use `sp_parcel_geom_native`. The stored column
+and indexed predicates remain native 5514; the extra work is limited to one
+viewport multipoint transform, selected output geometries and a small exact-SRS
+identity check when the read service is constructed. This run shows a modest
+latency increase but no query-plan or guardrail regression.
+
+The browser fixture was repeated with Node 24 / headless Chrome after the fix:
+
+| Viewport | Features | Request p50 / p95 | Parse p50 / p95 | Render p50 / p95 | Decoded JSON | Long tasks | Heap p50 / p95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Desktop 1440×900 | 1,500 | 118.3 / 130.5 ms | 2.7 / 2.8 ms | 28.0 / 29.1 ms | 824,774 B | 0 / 0 | 21.49 / 21.72 MB |
+| Mobile 390×844 | 1,033 | 100.4 / 102.7 ms | 1.9 / 2.0 ms | 20.4 / 20.7 ms | 568,056 B | 0 / 0 | 20.56 / 20.66 MB |
+
+The deterministic `too_dense` case again retained all 240 KÚ, rendered no
+parcel overlay and produced no UI error. The differences are within normal
+local development-run variance and do not change the Phase 05 delivery choice.
+
+Finally, the real protected 240-KÚ / 272,768-parcel snapshot was exercised
+through the public HTTP API. All 145 authoritative control vertices from five
+parcels were found with mean 0.138 m, p95 0.204 m and maximum 0.222 m distance
+from the paired ČÚZK WFS EPSG:4326 coordinates. This is a correctness result,
+not an OSM-based benchmark.

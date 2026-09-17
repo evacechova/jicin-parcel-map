@@ -300,7 +300,7 @@ final class DatasetValidator
                 FROM %s
                 WHERE dataset_id = :dataset_id
                   AND ST_Within(
-                      ST_Transform(geom_native, 4326),
+                      ST_Transform(ST_SRID(geom_native, 1005514), 4326),
                       ST_GeomFromText(:bounds_wkt, 4326, 'axis-order=long-lat')
                   ) <> 1
                 SQL,

@@ -63,11 +63,14 @@ function apiTerritory(PDO $pdo, int $datasetId, string $kuCode, string $name): i
         INSERT INTO cadastral_territory (dataset_id, ku_code, name, inspire_id, geom_native)
         VALUES (
             :dataset_id, :ku_code, :name, :inspire_id,
-            ST_Transform(
-                ST_GeomFromText(
-                    'MULTIPOLYGON(((15.280 50.380,15.340 50.380,15.340 50.440,15.280 50.440,15.280 50.380)))',
-                    4326,
-                    'axis-order=long-lat'
+            ST_SRID(
+                ST_Transform(
+                    ST_GeomFromText(
+                        'MULTIPOLYGON(((15.280 50.380,15.340 50.380,15.340 50.440,15.280 50.440,15.280 50.380)))',
+                        4326,
+                        'axis-order=long-lat'
+                    ),
+                    1005514
                 ),
                 5514
             )
@@ -114,8 +117,11 @@ function apiParcel(
         ) VALUES (
             :dataset_id, :territory_id, :inspire_id, :label,
             :national_reference, 25.50,
-            ST_Transform(
-                ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+            ST_SRID(
+                ST_Transform(
+                    ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+                    1005514
+                ),
                 5514
             )
         )
@@ -261,8 +267,11 @@ try {
             national_cadastral_reference, area_m2, geom_native
         ) VALUES (
             :dataset_id, :territory_id, :inspire_id, :label, :national_reference, 1,
-            ST_Transform(
-                ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+            ST_SRID(
+                ST_Transform(
+                    ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+                    1005514
+                ),
                 5514
             )
         )

@@ -30,8 +30,11 @@ final readonly class ViewportEnvelopeBuilder
 
         $statement = $this->pdo->prepare(<<<'SQL'
             SELECT ST_AsText(
-                ST_Transform(
-                    ST_GeomFromText(:points_wkt, 4326, 'axis-order=long-lat'),
+                ST_SRID(
+                    ST_Transform(
+                        ST_GeomFromText(:points_wkt, 4326, 'axis-order=long-lat'),
+                        1005514
+                    ),
                     5514
                 ),
                 'axis-order=srid-defined'

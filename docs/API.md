@@ -6,6 +6,9 @@
 - The API reads only the one active `ready` dataset. A client never supplies a
   dataset ID, CRS, SQL fragment, source URL or arbitrary filter.
 - Map geometry is GeoJSON in EPSG:4326. Native MySQL geometry remains 5514.
+- Every public/native conversion uses the verified application-owned MySQL SRS
+  `1005514`; it is an operational label for the same native coordinates, not a
+  storage CRS or a public API option.
 - The response limit, zoom threshold and permitted BBOX extent are server
   constants. A client may request data, but cannot expand the safety envelope.
 
@@ -204,7 +207,8 @@ Choose a small PHP geometry helper plus MySQL coordinate transformation:
    apart; use linear interpolation in longitude/latitude, not geodesic arcs.
    A boundary-only line/point intersection is sampled without inventing area.
 2. Send the samples as a bound 4326 `MULTIPOINT` with explicit
-   `axis-order=long-lat`; transform that one input geometry to 5514.
+   `axis-order=long-lat`; transform that geometry to application SRS `1005514`,
+   then relabel the unchanged native coordinates as storage SRID 5514.
 3. Compute min/max native X/Y over the transformed samples in PHP and expand
    each side outwards by `QUERY_MARGIN_METRES`. Construct Q as a native 5514
    WKT rectangle with explicit SRID-defined axis order. No geographic
@@ -240,7 +244,18 @@ thin viewports and D boundaries. Dense reference sampling and fixtures are
 regression evidence, not by themselves a mathematical bound on unsampled
 extrema. If the bound/coverage cannot be justified, the spatial preflight fails;
 do not silently fall back to four corners or claim correctness from timing.
-No general GIS engine, PROJ dependency, new CRS or database change is planned.
+No general GIS engine, PROJ/GDAL runtime dependency or geometry migration is
+required. A server-global application SRS is provisioned explicitly from
+`database/spatial-reference/1005514.sql`; startup/import preflight verifies its
+name, description and exact definition checksum and refuses a missing or
+different definition. The operation is the WKT1 position-vector equivalent of
+EPSG coordinate-frame operation 5239 over the Czech area. MySQL's built-in
+5514 definition was rejected because it produced a repeatable 6–7 m east and
+2.5–3.9 m north offset against paired ČÚZK WFS coordinates. The
+[EPSG registry entry](https://epsg.org/transformation_5239/S-JTSK-to-WGS-84-5.html)
+declares the operation's accuracy as 1.0 m for medium/low-accuracy use; the
+smaller errors measured by this project on 145 points are sample evidence, not
+a centimetre or survey-grade accuracy claim.
 The reasoning behind edge densification is also documented by
 [PROJ's bounds transformation](https://proj.org/en/stable/development/reference/functions.html#c.proj_trans_bounds).
 
@@ -259,7 +274,9 @@ WITH viewport AS (
     'axis-order=srid-defined') AS geom_5514
 )
 SELECT p.inspire_id, p.label,
-       ST_AsGeoJSON(ST_Transform(p.geom_native, 4326)) AS geometry_json
+       ST_AsGeoJSON(
+         ST_Transform(ST_SRID(p.geom_native, 1005514), 4326)
+       ) AS geometry_json
 FROM viewport AS v
 JOIN parcel AS p
   ON MBRIntersects(p.geom_native, v.geom_5514)
@@ -271,6 +288,22 @@ LIMIT :hard_limit_plus_one;
 
 The KÚ endpoint uses the same BBOX construction and two-stage spatial predicate
 over `cadastral_territory.geom_native`.
+
+The complete bidirectional path is therefore:
+
+```text
+public BBOX 4326
+  -> ST_Transform(..., 1005514)
+  -> relabel as storage 5514
+  -> indexed native predicates and unchanged 25 m margin
+  -> relabel selected storage geometry as 1005514
+  -> ST_Transform(..., 4326)
+  -> GeoJSON [longitude, latitude]
+```
+
+Relabelling changes only SRID metadata on transient expressions. Stored 5514
+coordinates and their spatial indexes are never rewritten or transformed in
+the predicate.
 
 ## Map level of detail
 

@@ -14,6 +14,9 @@
         "dev": "@php -S 127.0.0.1:8000 -t public public/index.php",
         "db": "@php bin/database.php",
         "db:test": "@php bin/database.php --test",
+        "verify:srs": "@php bin/verify-spatial-reference.php",
+        "verify:srs:test": "@php bin/verify-spatial-reference.php --test",
+        "verify:crs": "@php tests/Integration/verify_crs_regression.php",
         "verify:database": "@php tests/Integration/verify_database.php",
         "verify:importer": "@php tests/Importer/verify_parser_download.php",
         "verify:importer-db": "@php tests/Integration/verify_cadastral_import.php",
@@ -28,6 +31,7 @@
         "seed:frontend-benchmark": "@php tests/Performance/frontend_benchmark_fixture.php seed",
         "clean:frontend-benchmark": "@php tests/Performance/frontend_benchmark_fixture.php clean",
         "smoke:cuzk": "@php tests/Integration/smoke_cuzk_601101.php",
+        "smoke:crs": "@php tests/Integration/smoke_cuzk_crs.php",
         "smoke:importer-db": "@php tests/Integration/smoke_cadastral_import_601101.php",
         "lint": [
             "@php -l app/bootstrap.php",
@@ -70,13 +74,16 @@
             "@php -l app/Api/MapReadService.php",
             "@php -l app/Api/MapApi.php",
             "@php -l app/Geo/NativeEnvelope.php",
+            "@php -l app/Geo/CadastralCrs.php",
             "@php -l app/Geo/ViewportEnvelopeBuilder.php",
             "@php -l app/Read/MapReadRepository.php",
             "@php -l app/Read/DatabaseMapReadService.php",
             "@php -l app/Read/UnavailableMapReadService.php",
             "@php -l bin/database.php",
+            "@php -l bin/verify-spatial-reference.php",
             "@php -l bin/import-cadastral.php",
             "@php -l tests/Integration/verify_database.php",
+            "@php -l tests/Integration/verify_crs_regression.php",
             "@php -l tests/Integration/verify_cadastral_import.php",
             "@php -l tests/Integration/smoke_cadastral_import_601101.php",
             "@php -l tests/Integration/verify_dataset_publication.php",
@@ -86,7 +93,8 @@
             "@php -l tests/Performance/benchmark_api.php",
             "@php -l tests/Performance/frontend_benchmark_fixture.php",
             "@php -l tests/Importer/verify_parser_download.php",
-            "@php -l tests/Integration/smoke_cuzk_601101.php"
+            "@php -l tests/Integration/smoke_cuzk_601101.php",
+            "@php -l tests/Integration/smoke_cuzk_crs.php"
         ]
     },
     "config": { "process-timeout": 0 }

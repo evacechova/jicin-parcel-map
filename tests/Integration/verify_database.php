@@ -181,10 +181,10 @@ try {
     $srsIds = $pdo->query(<<<'SQL'
         SELECT SRS_ID
         FROM INFORMATION_SCHEMA.ST_SPATIAL_REFERENCE_SYSTEMS
-        WHERE SRS_ID IN (4326, 5514)
+        WHERE SRS_ID IN (4326, 5514, 1005514)
         ORDER BY SRS_ID
         SQL)->fetchAll(PDO::FETCH_COLUMN);
-    assertSameValue(['4326', '5514'], array_map('strval', $srsIds), 'Required SRS definitions are missing.');
+    assertSameValue(['4326', '5514', '1005514'], array_map('strval', $srsIds), 'Required SRS definitions are missing.');
 
     $geometryRows = $pdo->query(<<<'SQL'
         SELECT TABLE_NAME, COLUMN_NAME, SRS_ID, GEOMETRY_TYPE_NAME
@@ -272,34 +272,37 @@ try {
             ST_SRID(transformed) AS srid
         FROM (
             SELECT ST_Transform(
-                ST_GeomFromText(
-                    'POINT(-671984.1403374915 -1013081.1797817094)',
-                    5514,
-                    'axis-order=srid-defined'
+                ST_SRID(
+                    ST_GeomFromText(
+                        'POINT(-647087.71 -1027689.06)',
+                        5514,
+                        'axis-order=srid-defined'
+                    ),
+                    1005514
                 ),
                 4326
             ) AS transformed
         ) AS control_point
         SQL)->fetch();
-    assertTrue(abs((float) $transform['longitude'] - 15.3516) < 0.00001, '5514 to 4326 longitude is outside tolerance.');
-    assertTrue(abs((float) $transform['latitude'] - 50.4372) < 0.00001, '5514 to 4326 latitude is outside tolerance.');
+    assertTrue(abs((float) $transform['longitude'] - 15.723937) < 0.000005, '5514 to 4326 longitude is outside tolerance.');
+    assertTrue(abs((float) $transform['latitude'] - 50.334021) < 0.000005, '5514 to 4326 latitude is outside tolerance.');
     assertSameValue(4326, (int) $transform['srid'], 'Transformed point has the wrong SRID.');
     $geojson = json_decode((string) $transform['geojson'], true, flags: JSON_THROW_ON_ERROR);
-    assertTrue(abs((float) $geojson['coordinates'][0] - 15.3516) < 0.00001, 'GeoJSON first coordinate is not longitude.');
-    assertTrue(abs((float) $geojson['coordinates'][1] - 50.4372) < 0.00001, 'GeoJSON second coordinate is not latitude.');
+    assertTrue(abs((float) $geojson['coordinates'][0] - 15.723937) < 0.000005, 'GeoJSON first coordinate is not longitude.');
+    assertTrue(abs((float) $geojson['coordinates'][1] - 50.334021) < 0.000005, 'GeoJSON second coordinate is not latitude.');
 
     $reverse = $pdo->query(<<<'SQL'
         SELECT ST_X(transformed) AS x, ST_Y(transformed) AS y, ST_SRID(transformed) AS srid
         FROM (
             SELECT ST_Transform(
-                ST_GeomFromText('POINT(15.3516 50.4372)', 4326, 'axis-order=long-lat'),
-                5514
+                ST_GeomFromText('POINT(15.723937 50.334021)', 4326, 'axis-order=long-lat'),
+                1005514
             ) AS transformed
         ) AS control_point
         SQL)->fetch();
-    assertTrue(abs((float) $reverse['x'] - (-671984.1403374915)) < 1.0, '4326 to 5514 easting is outside tolerance.');
-    assertTrue(abs((float) $reverse['y'] - (-1013081.1797817094)) < 1.0, '4326 to 5514 northing is outside tolerance.');
-    assertSameValue(5514, (int) $reverse['srid'], 'Reverse-transformed point has the wrong SRID.');
+    assertTrue(abs((float) $reverse['x'] - (-647087.71)) < 0.5, '4326 to native easting is outside tolerance.');
+    assertTrue(abs((float) $reverse['y'] - (-1027689.06)) < 0.5, '4326 to native northing is outside tolerance.');
+    assertSameValue(1005514, (int) $reverse['srid'], 'Reverse-transformed point has the wrong operational SRID.');
 
     $pdo->beginTransaction();
     $pdo->exec('DELETE FROM parcel');
@@ -499,7 +502,7 @@ try {
     $pdo->rollBack();
 
     printf("Database verification passed on MySQL %s.\n", $serverVersion);
-    echo "Verified migrations, SRS 4326/5514, bidirectional transform, GeoJSON [lng, lat],\n";
+    echo "Verified migrations, SRS 4326/5514/1005514, bidirectional transform, GeoJSON [lng, lat],\n";
     echo "SRID-restricted geometry, spatial/B-tree indexes, indexed BBOX query,\n";
     echo "active dataset isolation, checkpoint uniqueness and S3 foreign-key invariants.\n";
 } catch (Throwable $exception) {

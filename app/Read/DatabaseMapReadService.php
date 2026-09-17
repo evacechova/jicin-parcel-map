@@ -8,6 +8,7 @@ use App\Api\ApiException;
 use App\Api\BoundingBox;
 use App\Api\MapApiConfig;
 use App\Api\MapReadService;
+use App\Geo\CadastralCrs;
 use App\Geo\ViewportEnvelopeBuilder;
 use PDO;
 use Throwable;
@@ -21,6 +22,7 @@ final readonly class DatabaseMapReadService implements MapReadService
         private PDO $pdo,
         private MapApiConfig $config,
     ) {
+        CadastralCrs::verify($pdo);
         $this->repository = new MapReadRepository($pdo);
         $this->envelopes = new ViewportEnvelopeBuilder(
             $pdo,

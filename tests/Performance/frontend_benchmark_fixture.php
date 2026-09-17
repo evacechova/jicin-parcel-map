@@ -56,8 +56,11 @@ try {
         INSERT INTO cadastral_territory (dataset_id, ku_code, name, inspire_id, geom_native)
         VALUES (
             :dataset_id, :ku_code, :name, :inspire_id,
-            ST_Transform(
-                ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+            ST_SRID(
+                ST_Transform(
+                    ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+                    1005514
+                ),
                 5514
             )
         )
@@ -111,8 +114,11 @@ try {
         ) VALUES (
             :dataset_id, :territory_id, :inspire_id, :label,
             :national_reference, :area_m2,
-            ST_Transform(
-                ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+            ST_SRID(
+                ST_Transform(
+                    ST_GeomFromText(:geometry_wkt, 4326, 'axis-order=long-lat'),
+                    1005514
+                ),
                 5514
             )
         )
